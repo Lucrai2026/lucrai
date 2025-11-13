@@ -28,7 +28,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # --- Definição dos Estágios da Conversa ---
-INICIO, NOME, DATA_NASCIMENTO, CIDADE, EMAIL, CONFIRMACAO, MENU, SACAR_SALDO, RECEBER_PIX = range(9)
+INICIO, NOME, DATA_NASCIMENTO, CIDADE, EMAIL, CONFIRMACAO, MENU, SACAR_SALDO, RECEBER_PIX, PESQUISAS, RECEBER_CODIGO_PESQUISA = range(11)
 
 DB_NAME = "lucrai_db.sqlite"
 
@@ -262,7 +262,63 @@ async def assistir_video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 async def menu_pesquisas(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Exibe o menu de tarefas de pesquisas."""
-    await update.message.reply_text("Você está na seção de Pesquisas. Em breve, as tarefas de pesquisas estarão disponíveis aqui.")
+    
+    pesquisas_keyboard = [
+        ["📝 Pesquisa Rápida (R$ 1.50)"],
+        ["📝 Pesquisa Detalhada (R$ 3.00)"],
+        ["⬅️ Voltar ao Menu Principal"],
+    ]
+    
+    await update.message.reply_html(
+        "<b>📝 Ganhe respondendo pesquisas</b>\n\n"
+        "Selecione uma pesquisa para começar. Ao final, você receberá um código de confirmação para creditar seu saldo.",
+        reply_markup=ReplyKeyboardMarkup(
+            pesquisas_keyboard, resize_keyboard=True, one_time_keyboard=False
+        ),
+    )
+    return PESQUISAS
+
+async def iniciar_pesquisa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Simula o início de uma pesquisa e pede o código de confirmação."""
+    texto = update.message.text
+    
+    if "Pesquisa Rápida" in texto:
+        valor = 1.50
+        link = "https://link-simulado-pesquisa-rapida.com"
+    elif "Pesquisa Detalhada" in texto:
+        valor = 3.00
+        link = "https://link-simulado-pesquisa-detalhada.com"
+    else:
+        return await navegar_menu(update, context) # Volta para o menu principal se for "Voltar" ou não reconhecido
+        
+    context.user_data["pesquisa_valor"] = valor
+    
+    await update.message.reply_html(
+        f"✅ Você selecionou: <b>{texto}</b>\n\n"
+        f"Clique no link para responder a pesquisa: <a href='{link}'>{link}</a>\n\n"
+        "<b>IMPORTANTE:</b> Ao final da pesquisa, você receberá um **CÓDIGO DE CONFIRMAÇÃO**. Digite-o aqui para receber seu crédito."
+    )
+    return RECEBER_CODIGO_PESQUISA
+
+async def receber_codigo_pesquisa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Recebe o código de confirmação e credita o saldo."""
+    codigo = update.message.text
+    user_id = update.effective_user.id
+    valor = context.user_data.pop("pesquisa_valor", 0.0)
+    
+    # Lógica de validação de código simulada
+    if codigo.upper() == "LUCRAI123":
+        update_user_saldo(user_id, valor)
+        await update.message.reply_html(
+            f"🎉 **Parabéns!** O código foi validado com sucesso.\n\n"
+            f"Você recebeu <b>R$ {valor:.2f}</b> em seu saldo!\n\n"
+            "Selecione outra pesquisa ou volte ao menu principal."
+        )
+    else:
+        await update.message.reply_html(
+            "❌ **Código Inválido.** Por favor, verifique se digitou o código corretamente ou se a pesquisa foi concluída."
+        )
+        
     return MENU
 
 async def menu_apps(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -453,6 +509,9 @@ def main() -> None:
             RECEBER_PIX: [MessageHandler(filters.TEXT & ~filters.COMMAND, receber_chave_pix)],
             # Handler para o fluxo de vídeos
             'VIDEOS': [MessageHandler(filters.Regex("^(🎥 Vídeo 1 \\(R\\$ 0\\.50\\)|🎥 Vídeo 2 \\(R\\$ 0\\.75\\)|🎥 Vídeo 3 \\(R\\$ 1\\.00\\)|⬅️ Voltar ao Menu Principal)$"), assistir_video)],
+            # Handler para o fluxo de pesquisas
+            PESQUISAS: [MessageHandler(filters.Regex("^(📝 Pesquisa Rápida \\(R\\$ 1\\.50\\)|📝 Pesquisa Detalhada \\(R\\$ 3\\.00\\)|⬅️ Voltar ao Menu Principal)$"), iniciar_pesquisa)],
+            RECEBER_CODIGO_PESQUISA: [MessageHandler(filters.TEXT & ~filters.COMMAND, receber_codigo_pesquisa)],
         },
         fallbacks=[CommandHandler("cancelar", cancelar)],
     )
