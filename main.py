@@ -26,7 +26,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # --- Definição dos Estágios da Conversa ---
-INICIO, NOME, DATA_NASCIMENTO, CIDADE, EMAIL, CONFIRMACAO, MENU = range(7)
+INICIO, NOME, DATA_NASCIMENTO, CIDADE, EMAIL, CONFIRMACAO, MENU, SACAR_SALDO, RECEBER_PIX = range(9)
 
 DB_NAME = "lucrai_db.sqlite"
 
@@ -47,9 +47,23 @@ def init_db() -> None:
             cidade TEXT,
             email TEXT UNIQUE NOT NULL,
             saldo REAL DEFAULT 0.0,
-            indicador_id INTEGER
+            indicador_id INTEGER,
+            chave_pix TEXT
         )
         """
+    )
+    conn.commit()
+    conn.close()
+
+def update_user_pix(user_id: int, chave_pix: str) -> None:
+    """Atualiza a chave PIX de um usuário no banco de dados."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        UPDATE usuarios SET chave_pix = ? WHERE user_id = ?
+        """,
+        (chave_pix, user_id),
     )
     conn.commit()
     conn.close()
@@ -207,6 +221,48 @@ async def menu_apps(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Você está na seção de Aplicativos. Em breve, as tarefas de aplicativos estarão disponíveis aqui.")
     return MENU
 
+async def menu_sacar_saldo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Inicia o fluxo de saque, verificando o saldo e solicitando a chave PIX."""
+    user_id = update.effective_user.id
+    user_data = get_user(user_id)
+    
+    if not user_data:
+        await update.message.reply_text("Seu perfil não foi encontrado. Por favor, inicie o cadastro novamente com /start.")
+        return ConversationHandler.END
+        
+    saldo_float = user_data[5]
+    saldo = f"R$ {saldo_float:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    
+    if saldo_float < 20.0: # Valor mínimo de saque (exemplo)
+        await update.message.reply_html(
+            f"Seu saldo atual é de <b>{saldo}</b>.\n\n"
+            "O valor mínimo para saque é de <b>R$ 20,00</b>. Continue lucrando para atingir o valor!"
+        )
+        return MENU
+        
+    # Se tiver saldo suficiente, pede a chave PIX
+    await update.message.reply_html(
+        f"Seu saldo atual é de <b>{saldo}</b>. Você pode sacar!\n\n"
+        "Para prosseguir, por favor, digite sua **chave PIX** (pode ser CPF, Email, Telefone ou Chave Aleatória)."
+    )
+    return RECEBER_PIX
+
+async def receber_chave_pix(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Recebe a chave PIX e finaliza o fluxo de saque."""
+    chave_pix = update.message.text
+    user_id = update.effective_user.id
+    
+    # Salva a chave PIX no banco de dados
+    update_user_pix(user_id, chave_pix)
+    
+    # Simulação de solicitação de saque
+    await update.message.reply_html(
+        f"✅ **Chave PIX ({chave_pix}) salva com sucesso!**\n\n"
+        "Sua solicitação de saque foi enviada para análise. O pagamento será processado em até 24 horas úteis."
+    )
+    
+    return MENU
+
 async def menu_perfil(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Exibe os dados cadastrais do usuário."""
     user_id = update.effective_user.id
@@ -266,7 +322,7 @@ async def navegar_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     texto = update.message.text
     
     if texto == "💰 Sacar Saldo":
-        await update.message.reply_text("Aqui você poderá solicitar o saque do seu saldo. Por favor, cadastre sua chave PIX para continuar.")
+        return await menu_sacar_saldo(update, context)
     elif texto == "👤 Meu Perfil":
         return await menu_perfil(update, context)
     elif texto == "🎬 Ganhe assistindo a vídeos":
@@ -321,6 +377,8 @@ def main() -> None:
             EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, receber_email)],
             CONFIRMACAO: [MessageHandler(filters.Regex("^(Sim, está tudo certo!|Não, quero corrigir)$"), receber_confirmacao)],
             MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, navegar_menu)],
+            SACAR_SALDO: [MessageHandler(filters.TEXT & ~filters.COMMAND, menu_sacar_saldo)], # Não é usado, mas mantido para o fluxo
+            RECEBER_PIX: [MessageHandler(filters.TEXT & ~filters.COMMAND, receber_chave_pix)],
         },
         fallbacks=[CommandHandler("cancelar", cancelar)],
     )
