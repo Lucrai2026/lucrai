@@ -77,6 +77,19 @@ def get_user(user_id: int) -> Optional[tuple]:
     conn.close()
     return user
 
+def update_user_saldo(user_id: int, valor: float) -> None:
+    """Atualiza o saldo de um usuário no banco de dados."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        UPDATE usuarios SET saldo = saldo + ? WHERE user_id = ?
+        """,
+        (valor, user_id),
+    )
+    conn.commit()
+    conn.close()
+
 def save_user(user_id: int, nome: str, data_nascimento: str, cidade: str, email: str) -> None:
     """Salva um novo usuário no banco de dados."""
     conn = sqlite3.connect(DB_NAME)
@@ -208,7 +221,41 @@ async def receber_confirmacao(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def menu_videos(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Exibe o menu de tarefas de vídeos."""
-    await update.message.reply_text("Você está na seção de Vídeos. Em breve, as tarefas de vídeos estarão disponíveis aqui.")
+    
+    videos_keyboard = [
+        ["🎥 Vídeo 1 (R$ 0.50)", "🎥 Vídeo 2 (R$ 0.75)"],
+        ["🎥 Vídeo 3 (R$ 1.00)", "⬅️ Voltar ao Menu Principal"],
+    ]
+    
+    await update.message.reply_html(
+        "<b>🎬 Ganhe assistindo a vídeos</b>\n\n"
+        "Assista aos vídeos abaixo e receba o valor creditado em seu saldo imediatamente!",
+        reply_markup=ReplyKeyboardMarkup(
+            videos_keyboard, resize_keyboard=True, one_time_keyboard=False
+        ),
+    )
+    return MENU
+
+async def assistir_video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Simula o ato de assistir a um vídeo e credita o saldo."""
+    texto = update.message.text
+    user_id = update.effective_user.id
+    
+    if "Vídeo 1" in texto:
+        valor = 0.50
+    elif "Vídeo 2" in texto:
+        valor = 0.75
+    elif "Vídeo 3" in texto:
+        valor = 1.00
+    else:
+        return await navegar_menu(update, context) # Volta para o menu principal se for "Voltar" ou não reconhecido
+        
+    update_user_saldo(user_id, valor)
+    
+    await update.message.reply_html(
+        f"✅ Você assistiu ao {texto.split('(')[0].strip()} e recebeu <b>R$ {valor:.2f}</b> em seu saldo!\n\n"
+        "Selecione o próximo vídeo ou volte ao menu principal."
+    )
     return MENU
 
 async def menu_pesquisas(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -327,6 +374,8 @@ async def navegar_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         return await menu_perfil(update, context)
     elif texto == "🎬 Ganhe assistindo a vídeos":
         return await menu_videos(update, context)
+    elif texto == "⬅️ Voltar ao Menu Principal":
+        return await menu_principal(update, context)
     elif texto == "📝 Ganhe respondendo pesquisas":
         return await menu_pesquisas(update, context)
     elif texto == "📱 Ganhe testando aplicativos":
@@ -379,6 +428,8 @@ def main() -> None:
             MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, navegar_menu)],
             SACAR_SALDO: [MessageHandler(filters.TEXT & ~filters.COMMAND, menu_sacar_saldo)], # Não é usado, mas mantido para o fluxo
             RECEBER_PIX: [MessageHandler(filters.TEXT & ~filters.COMMAND, receber_chave_pix)],
+            # Handler para o fluxo de vídeos
+            'VIDEOS': [MessageHandler(filters.Regex("^(🎥 Vídeo 1 \\(R\\$ 0\\.50\\)|🎥 Vídeo 2 \\(R\\$ 0\\.75\\)|🎥 Vídeo 3 \\(R\\$ 1\\.00\\)|⬅️ Voltar ao Menu Principal)$"), assistir_video)],
         },
         fallbacks=[CommandHandler("cancelar", cancelar)],
     )
