@@ -128,11 +128,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     texto_boas_vindas = (
         "<b>Seja bem-vindo ao Lucraí!</b> 🚀\n\n"
-        "Mas afinal, o que é este poderoso bot no Telegram?\n\n"
-        "É uma ferramenta onde você vai ganhar dinheiro diretamente conosco, aqui no Telegram. Simples assim!\n\n"
+        "O Lucraí é a sua plataforma de renda extra no Telegram. Clicou, Lucrou!\n\n"
         "<b>Como funciona?</b>\n"
-        "Você se cadastra, recebe \"missões\" (como assistir a vídeos, responder pesquisas, etc.) e, para cada missão completada, você recebe um valor em dinheiro. É uma forma simples e divertida de fazer uma boa renda extra.\n\n"
-        "E aí, vamos começar?"
+        "Você realiza tarefas simples (ver vídeos, responder pesquisas, testar apps) e recebe dinheiro na hora, direto no seu saldo.\n\n"
+        "Vamos começar seu cadastro para liberar o acesso ao Painel de Controle!"
     )
     
     reply_keyboard = [["🚀 Sim, vamos começar!"]]
@@ -319,6 +318,22 @@ async def receber_codigo_pesquisa(update: Update, context: ContextTypes.DEFAULT_
         
     return MENU
 
+async def menu_indicacao(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Gera e exibe o link de indicação do usuário."""
+    user_id = update.effective_user.id
+    
+    # O link de indicação é o link do bot com o user_id como parâmetro de start
+    link_indicacao = f"https://t.me/Lucrai_clicou_ganhou_bot?start={user_id}"
+    
+    await update.message.reply_html(
+        "<b>🔗 Indique e Ganhe</b>\n\n"
+        "Compartilhe seu link de indicação e ganhe uma comissão por cada amigo que se cadastrar e completar a primeira tarefa!\n\n"
+        f"<b>Seu Link de Indicação:</b>\n"
+        f"<a href='{link_indicacao}'>{link_indicacao}</a>\n\n"
+        "Basta clicar no link para copiar e enviar para seus amigos."
+    )
+    return MENU
+
 async def menu_apps(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Exibe o menu de tarefas de aplicativos."""
     
@@ -432,13 +447,14 @@ async def menu_perfil(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         await update.message.reply_text("Seu perfil não foi encontrado. Por favor, inicie o cadastro novamente com /start.")
         return ConversationHandler.END
         
-    # user_data: (user_id, nome, data_nascimento, cidade, email, saldo, indicador_id)
+    # user_data: (user_id, nome, data_nascimento, cidade, email, saldo, indicador_id, chave_pix)
     nome = user_data[1]
     data_nascimento = user_data[2] if user_data[2] else "Não informado"
     cidade = user_data[3] if user_data[3] else "Não informado"
     email = user_data[4]
     saldo_float = user_data[5]
     saldo = f"R$ {saldo_float:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    chave_pix = user_data[7] if len(user_data) > 7 and user_data[7] else "Não cadastrada"
     
     texto_perfil = (
         f"👤 <b>Seu Perfil</b>\n\n"
@@ -446,7 +462,8 @@ async def menu_perfil(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         f"<b>Nascimento:</b> {data_nascimento}\n"
         f"<b>Cidade:</b> {cidade}\n"
         f"<b>Email:</b> {email}\n\n"
-        f"<b>Saldo Atual:</b> {saldo}\n\n"
+        f"<b>Saldo Atual:</b> {saldo}\n"
+        f"<b>Chave PIX:</b> {chave_pix}\n\n"
         "Em breve, você poderá editar seus dados aqui."
     )
     
@@ -469,7 +486,7 @@ async def menu_principal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     await update.message.reply_html(
         f"<b>Painel de Controle de {nome}</b>\n\n"
-        f"<b>Saldo Atual:</b> {saldo}\n\n"
+        f"💰 <b>Seu Saldo Atual:</b> {saldo}\n\n"
         "Selecione uma opção abaixo para começar a lucrar:",
         reply_markup=ReplyKeyboardMarkup(
             menu_keyboard, resize_keyboard=True, one_time_keyboard=False
@@ -494,7 +511,7 @@ async def navegar_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     elif texto == "📱 Ganhe testando aplicativos":
         return await menu_apps(update, context)
     elif texto == "🔗 Indique e Ganhe":
-        await update.message.reply_text("Em breve, você poderá gerar seu link de indicação e começar a ganhar com seus amigos!")
+        return await menu_indicacao(update, context)
     else:
         await update.message.reply_text(f"Opção '{texto}' não reconhecida. Por favor, selecione uma opção do menu.")
     
