@@ -8,6 +8,8 @@
 
 import logging
 import sqlite3
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Optional
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
@@ -400,6 +402,24 @@ async def cancelar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 # |||||||||||||||||||||||||||| FUNÇÃO PRINCIPAL (MAIN) ||||||||||||||||||||||||||
 # =================================================================================
 
+# =================================================================================
+# |||||||||||||||||||||||||||| FUNÇÃO ANTI-SONECA ||||||||||||||||||||||||||||||
+# =================================================================================
+
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"Bot is alive and well!")
+
+def keep_alive_server():
+    """Inicia um servidor HTTP simples para responder ao Health Check do Render."""
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("", port), HealthCheckHandler)
+    logger.info(f"Servidor de Health Check iniciado na porta {port}")
+    server.serve_forever()
+
 def main() -> None:
     """Função principal que configura e inicia o bot."""
     
@@ -407,6 +427,9 @@ def main() -> None:
     init_db()
     
     import os
+    
+    # Inicia o servidor de Health Check em uma thread separada
+    threading.Thread(target=keep_alive_server, daemon=True).start()
     
     TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not TOKEN:
