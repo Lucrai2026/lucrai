@@ -26,7 +26,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # --- Definição dos Estágios da Conversa ---
-INICIO, NOME, DATA_NASCIMENTO, CIDADE, EMAIL, CONFIRMACAO, MENU, SACAR_SALDO, RECEBER_PIX, PESQUISAS, RECEBER_CODIGO_PESQUISA = range(11)
+INICIO, NOME, DATA_NASCIMENTO, CIDADE, EMAIL, CONFIRMACAO, MENU, SACAR_SALDO, RECEBER_PIX, PESQUISAS, RECEBER_CODIGO_PESQUISA, APPS, RECEBER_CONFIRMACAO_APP = range(13)
 
 DB_NAME = "lucrai_db.sqlite"
 
@@ -321,7 +321,64 @@ async def receber_codigo_pesquisa(update: Update, context: ContextTypes.DEFAULT_
 
 async def menu_apps(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Exibe o menu de tarefas de aplicativos."""
-    await update.message.reply_text("Você está na seção de Aplicativos. Em breve, as tarefas de aplicativos estarão disponíveis aqui.")
+    
+    apps_keyboard = [
+        ["📱 App X (R$ 5.00)"],
+        ["📱 App Y (R$ 7.50)"],
+        ["⬅️ Voltar ao Menu Principal"],
+    ]
+    
+    await update.message.reply_html(
+        "<b>📱 Ganhe testando aplicativos</b>\n\n"
+        "Selecione um aplicativo para instalar e testar. Você precisará enviar um print de tela para confirmar a instalação.",
+        reply_markup=ReplyKeyboardMarkup(
+            apps_keyboard, resize_keyboard=True, one_time_keyboard=False
+        ),
+    )
+    return APPS
+
+async def iniciar_app(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Simula o início de um teste de aplicativo e pede o print de tela."""
+    texto = update.message.text
+    
+    if "App X" in texto:
+        valor = 5.00
+        link = "https://link-simulado-app-x.com"
+    elif "App Y" in texto:
+        valor = 7.50
+        link = "https://link-simulado-app-y.com"
+    else:
+        return await navegar_menu(update, context) # Volta para o menu principal se for "Voltar" ou não reconhecido
+        
+    context.user_data["app_valor"] = valor
+    
+    await update.message.reply_html(
+        f"✅ Você selecionou: <b>{texto}</b>\n\n"
+        f"Instale o aplicativo por este link: <a href='{link}'>{link}</a>\n\n"
+        "<b>IMPORTANTE:</b> Após instalar e abrir o aplicativo, envie uma **FOTO (PRINT DE TELA)** da tela inicial do aplicativo para receber seu crédito."
+    )
+    return RECEBER_CONFIRMACAO_APP
+
+async def receber_confirmacao_app(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Recebe a foto de confirmação e credita o saldo."""
+    
+    if update.message.photo:
+        user_id = update.effective_user.id
+        valor = context.user_data.pop("app_valor", 0.0)
+        
+        # Lógica de validação de foto simulada (apenas verifica se a foto foi enviada)
+        update_user_saldo(user_id, valor)
+        
+        await update.message.reply_html(
+            f"🎉 **Confirmação Recebida!** Seu print de tela foi validado.\n\n"
+            f"Você recebeu <b>R$ {valor:.2f}</b> em seu saldo!\n\n"
+            "Selecione outro aplicativo ou volte ao menu principal."
+        )
+    else:
+        await update.message.reply_html(
+            "❌ **Confirmação Inválida.** Por favor, envie uma **FOTO (PRINT DE TELA)** da tela inicial do aplicativo."
+        )
+        
     return MENU
 
 async def menu_sacar_saldo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -489,6 +546,9 @@ def main() -> None:
             # Handler para o fluxo de pesquisas
             PESQUISAS: [MessageHandler(filters.Regex("^(📝 Pesquisa Rápida \\(R\\$ 1\\.50\\)|📝 Pesquisa Detalhada \\(R\\$ 3\\.00\\)|⬅️ Voltar ao Menu Principal)$"), iniciar_pesquisa)],
             RECEBER_CODIGO_PESQUISA: [MessageHandler(filters.TEXT & ~filters.COMMAND, receber_codigo_pesquisa)],
+            # Handler para o fluxo de aplicativos
+            APPS: [MessageHandler(filters.Regex("^(📱 App X \\(R\\$ 5\\.00\\)|📱 App Y \\(R\\$ 7\\.50\\)|⬅️ Voltar ao Menu Principal)$"), iniciar_app)],
+            RECEBER_CONFIRMACAO_APP: [MessageHandler(filters.PHOTO | filters.TEXT & ~filters.COMMAND, receber_confirmacao_app)],
         },
         fallbacks=[CommandHandler("cancelar", cancelar)],
     )
