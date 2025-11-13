@@ -207,6 +207,36 @@ async def menu_apps(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Você está na seção de Aplicativos. Em breve, as tarefas de aplicativos estarão disponíveis aqui.")
     return MENU
 
+async def menu_perfil(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Exibe os dados cadastrais do usuário."""
+    user_id = update.effective_user.id
+    user_data = get_user(user_id)
+    
+    if not user_data:
+        await update.message.reply_text("Seu perfil não foi encontrado. Por favor, inicie o cadastro novamente com /start.")
+        return ConversationHandler.END
+        
+    # user_data: (user_id, nome, data_nascimento, cidade, email, saldo, indicador_id)
+    nome = user_data[1]
+    data_nascimento = user_data[2] if user_data[2] else "Não informado"
+    cidade = user_data[3] if user_data[3] else "Não informado"
+    email = user_data[4]
+    saldo_float = user_data[5]
+    saldo = f"R$ {saldo_float:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    
+    texto_perfil = (
+        f"👤 <b>Seu Perfil</b>\n\n"
+        f"<b>Nome:</b> {nome}\n"
+        f"<b>Nascimento:</b> {data_nascimento}\n"
+        f"<b>Cidade:</b> {cidade}\n"
+        f"<b>Email:</b> {email}\n\n"
+        f"<b>Saldo Atual:</b> {saldo}\n\n"
+        "Em breve, você poderá editar seus dados aqui."
+    )
+    
+    await update.message.reply_html(texto_perfil)
+    return MENU
+
 async def menu_principal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Exibe o menu principal do bot."""
     # Busca o saldo do contexto (preenchido na função start ou após o cadastro)
@@ -238,7 +268,7 @@ async def navegar_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     if texto == "💰 Sacar Saldo":
         await update.message.reply_text("Aqui você poderá solicitar o saque do seu saldo. Por favor, cadastre sua chave PIX para continuar.")
     elif texto == "👤 Meu Perfil":
-        await update.message.reply_text("Aqui você verá seus dados cadastrais e poderá alterá-los.")
+        return await menu_perfil(update, context)
     elif texto == "🎬 Ganhe assistindo a vídeos":
         return await menu_videos(update, context)
     elif texto == "📝 Ganhe respondendo pesquisas":
