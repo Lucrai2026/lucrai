@@ -1,0 +1,25 @@
+# Arquivo de configuração Render Blueprint (render.yaml)
+# Para deploy do bot Lucraí
+
+services:
+  - type: web
+    name: lucrai-bot
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python main.py"
+    plan: free
+    # Variáveis de ambiente - O Render irá solicitar que o usuário defina o valor
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.11.0
+    # O bot do Telegram não precisa de porta pública, mas o Render exige uma porta.
+    # Usaremos uma porta padrão, mas o bot não a usará.
+    # O Render irá injetar a variável PORT, mas o bot a ignora.
+    healthCheckPath: /
+    autoDeploy: true
+    disk:
+      name: sqlite-data
+      mountPath: /var/data
+      sizeGB: 1
