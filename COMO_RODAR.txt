@@ -1,0 +1,55 @@
+# =================================================================================
+# ||||||||||||||||||||||||||| PROJETO LUCRAÍ - INSTRUÇÕES ||||||||||||||||||||||||
+# =================================================================================
+
+## 1. O QUE VOCÊ TEM
+Este pacote contém a estrutura central do seu bot do Telegram, o Lucraí.
+- **`main.py`**: O código Python do bot, com o fluxo de cadastro, Menu Principal e **integração com SQLite**.
+- **`requirements.txt`**: Lista de dependências para instalação.
+- **`PROMPT_CONTINUACAO.txt`**: O arquivo de contexto para o próximo desenvolvedor (IA ou humano).
+
+## 2. PRÓXIMOS PASSOS CRUCIAIS (Antes de Rodar)
+
+### 2.1. SEGURANÇA DO TOKEN (ESSENCIAL PARA DEPLOY)
+O token do bot foi removido do `main.py` e agora é lido de uma **variável de ambiente**.
+
+1.  **Obtenha o Token:** Vá ao BotFather no Telegram e obtenha o token do seu bot.
+2.  **Variável de Ambiente:** O bot espera que o token seja definido na variável de ambiente chamada **`TELEGRAM_BOT_TOKEN`**.
+
+### 2.2. INSTALAÇÃO (Ambiente Local)
+Você precisa ter o Python instalado no seu computador (versão 3.8 ou superior).
+
+1.  **Abra o Terminal** (ou Prompt de Comando/PowerShell).
+2.  Navegue até a pasta onde você salvou o `main.py`.
+3.  **Instale as dependências:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+## 3. COMO RODAR O BOT (Ambiente Local)
+1.  **Defina a Variável de Ambiente:**
+    *   **Linux/macOS:** `export TELEGRAM_BOT_TOKEN="SEU_TOKEN_AQUI"`
+    *   **Windows (CMD):** `set TELEGRAM_BOT_TOKEN="SEU_TOKEN_AQUI"`
+    *   **Windows (PowerShell):** `$env:TELEGRAM_BOT_TOKEN="SEU_TOKEN_AQUI"`
+2.  **Execute o bot:**
+    ```bash
+    python main.py
+    ```
+3.  O Terminal ficará "rodando" e exibirá a mensagem "Bot iniciado com sucesso!".
+4.  Vá para o Telegram e teste o bot com o comando `/start`.
+
+## 4. PRÓXIMA FASE DE DESENVOLVIMENTO
+A próxima etapa é a **Fase 10: Desenvolver a Lógica de Exibição de Tarefas e Saldo** (já iniciada com placeholders).
+
+## 5. INSTRUÇÕES PARA DEPLOY (Hospedagem)
+Para hospedar o bot em serviços como Render, Railway ou Heroku, siga estes passos:
+
+1.  **Crie um Repositório Git:** Inicialize um repositório Git local e envie o código para o **GitHub**.
+2.  **Configure o Serviço de Hospedagem:**
+    *   Conecte o serviço de hospedagem (ex: Render) ao seu repositório GitHub.
+    *   **Configure a Variável de Ambiente:** Na seção de configurações do serviço, adicione a variável de ambiente `TELEGRAM_BOT_TOKEN` com o valor do seu token.
+    *   **Comando de Inicialização:** O comando de inicialização do servidor será simplesmente: `python main.py`
+3.  O serviço fará o resto, instalando as dependências do `requirements.txt` e executando o bot.
+
+**Instrução para o Próximo Agente:**
+"O usuário deseja continuar o desenvolvimento do bot Lucraí. O código está preparado para deploy. A próxima etapa é a **Fase 10: Desenvolver a Lógica de Exibição de Tarefas e Saldo**, focando na implementação real das tarefas."

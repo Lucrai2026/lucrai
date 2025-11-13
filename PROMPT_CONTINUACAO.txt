@@ -1,0 +1,37 @@
+# PROMPT DE CONTINUAÇÃO PARA O PRÓXIMO AGENTE DE IA
+
+## 1. Contexto do Projeto
+- **Nome do Projeto:** Lucraí
+- **Objetivo:** Desenvolver um sistema completo de bot "Get-Paid-To" (GPT) no Telegram.
+- **Identidade:** Lucraí: Clicou, lucrou.
+- **Status Atual:** A estrutura central do bot está completa e corrigida. O fluxo de cadastro (Nome, Data de Nascimento, Cidade, Email) e o Menu Principal (com botões de tarefas e navegação) estão implementados no arquivo `main.py`.
+- **Problema de Teste:** O bot foi testado em um ambiente de sandbox instável, o que causou problemas de conexão e duplicação de mensagens. O código em si está corrigido.
+- **Próxima Fase (Fase 9 do Plano):** Integrar um banco de dados (sugestão: SQLite, por ser simples e embutido) para salvar permanentemente os dados do cadastro e o saldo do usuário.
+
+## 2. Próximos Passos Detalhados (Fases 9, 10 e 11)
+
+### Fase 9: Integração com Banco de Dados
+- **Ação:** Implementar o uso de um banco de dados (SQLite) no `main.py`.
+- **Objetivos:**
+    1. Criar a função de inicialização do DB (tabela `usuarios` com campos: `user_id`, `nome`, `data_nascimento`, `cidade`, `email`, `saldo`, `indicador_id`).
+    2. Modificar a função `start` para checar o cadastro no DB (e não mais na flag temporária `context.user_data['cadastrado']`).
+    3. Modificar a função `receber_confirmacao` para salvar os dados do usuário no DB.
+
+### Fase 10: Desenvolver a Lógica de Exibição de Tarefas e Saldo
+- **Ação:** Implementar a lógica de saldo e o fluxo de tarefas.
+- **Objetivos:**
+    1. Modificar a função `menu_principal` para buscar o saldo atualizado do DB.
+    2. Criar o fluxo de navegação para as tarefas (Vídeos, Pesquisas, Apps).
+
+### Fase 11: Preparar para Hospedagem e Entrega Final
+- **Ação:** Finalizar o código e preparar para a hospedagem 24/7.
+- **Objetivos:**
+    1. Remover o token do código e instruir o usuário a usar variáveis de ambiente.
+    2. Atualizar o arquivo `COMO_RODAR.txt` com instruções de hospedagem (ex: Render, Heroku, VPS).
+
+## 3. Arquivos e Código
+- O código mais recente e corrigido está no arquivo `main.py`.
+- O token do bot atual é `8021020384:AAFVAIOtose_eg9jehya__XXOM5Kh42S31A` (deve ser revogado pelo usuário).
+
+**Instrução para o Próximo Agente:**
+"O usuário deseja continuar o desenvolvimento do bot Lucraí. A próxima etapa é a **Integração com o Banco de Dados (Fase 9)**. O código atual está no `main.py`. Por favor, inicie a implementação do SQLite para salvar os dados do usuário de forma permanente, conforme detalhado na Fase 9."
