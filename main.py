@@ -662,11 +662,24 @@ Parabéns! Continue assistindo para ganhar mais! 🎉'''
         
         keyboard = [[InlineKeyboardButton('🎬 Voltar aos Vídeos', callback_data='videos')]]
         
-        await query.edit_message_text(
-            texto,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='HTML'
-        )
+        # Deletar mensagem anterior e enviar nova
+        try:
+            await query.message.delete()
+        except:
+            pass
+        
+        try:
+            await query.message.reply_text(
+                texto,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='HTML'
+            )
+        except Exception as send_err:
+            logger.error(f'Erro ao enviar mensagem: {send_err}')
+            try:
+                await query.edit_message_text(f'Erro: {str(send_err)}')
+            except:
+                pass
     except Exception as e:
         logger.error(f'Erro ao assistir vídeo: {e}')
         try:
