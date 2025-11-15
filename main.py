@@ -597,25 +597,26 @@ async def mostrar_videos(query, usuario):
 
 async def assistir_video(query, usuario, video_id):
     """Processa a assistência de um vídeo."""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute('SELECT titulo, url, valor FROM videos WHERE id = ?', (video_id,))
-    video = cursor.fetchone()
-    conn.close()
-    
-    if not video:
-        await query.edit_message_text('Vídeo não encontrado.')
-        return
-    
-    titulo, url, valor = video
-    
-    # Registrar visualização
-    registrar_visualizacao(usuario['user_id'], video_id, valor)
-    
-    # Atualizar saldo do usuário
-    usuario_atualizado = obter_usuario(usuario['user_id'])
-    
-    texto = f'''✅ <b>Vídeo Assistido com Sucesso!</b>
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute('SELECT titulo, url, valor FROM videos WHERE id = ?', (video_id,))
+        video = cursor.fetchone()
+        conn.close()
+        
+        if not video:
+            await query.edit_message_text('Vídeo não encontrado.')
+            return
+        
+        titulo, url, valor = video
+        
+        # Registrar visualização
+        registrar_visualizacao(usuario['user_id'], video_id, valor)
+        
+        # Atualizar saldo do usuário
+        usuario_atualizado = obter_usuario(usuario['user_id'])
+        
+        texto = f'''✅ <b>Vídeo Assistido com Sucesso!</b>
 
 📹 <b>{titulo}</b>
 💰 <b>Você ganhou: R$ {valor:.2f}</b>
@@ -623,14 +624,20 @@ async def assistir_video(query, usuario, video_id):
 💵 <b>Seu novo saldo:</b> R$ {usuario_atualizado['saldo']:.2f}
 
 Parabéns! Continue assistindo para ganhar mais! 🎉'''
-    
-    keyboard = [[InlineKeyboardButton('🎬 Voltar aos Vídeos', callback_data='videos')]]
-    
-    await query.edit_message_text(
-        texto,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode='HTML'
-    )
+        
+        keyboard = [[InlineKeyboardButton('🎬 Voltar aos Vídeos', callback_data='videos')]]
+        
+        await query.edit_message_text(
+            texto,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='HTML'
+        )
+    except Exception as e:
+        logger.error(f'Erro ao assistir vídeo: {e}')
+        try:
+            await query.edit_message_text(f'Erro: {str(e)}')
+        except:
+            pass
 
 async def mostrar_saque(query, usuario):
     """Mostra opções de saque."""
