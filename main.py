@@ -746,16 +746,6 @@ async def mostrar_afiliado(query, usuario):
     comissoes = obter_comissoes(usuario['user_id'])
     
     # Mostrar imagem do banner
-    try:
-        with open('banner_afiliado.png', 'rb') as banner_file:
-            await query.message.reply_photo(
-                photo=banner_file,
-                caption='🔗 <b>INDIQUE E GANHE</b>',
-                parse_mode='HTML'
-            )
-    except FileNotFoundError:
-        logger.warning('⚠️ Banner de afiliado não encontrado!')
-    
     texto = f'''🔗 <b>INDIQUE E GANHE</b>
 
 Compartilhe seu link único e ganhe 10% de tudo que seus indicados fizerem!
@@ -776,23 +766,29 @@ Comece a indicar e ganhe mais! 🚀'''
     
     keyboard = [[InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')]]
     
-    await query.message.reply_text(
-        texto,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode='HTML'
-    )
+    try:
+        with open('banner_afiliado.png', 'rb') as banner_file:
+            await query.edit_message_media(
+                media=InputMediaPhoto(banner_file),
+                caption=texto,
+                parse_mode='HTML'
+            )
+            await query.edit_message_reply_markup(
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+    except:
+        try:
+            await query.edit_message_text(
+                texto,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='HTML'
+            )
+        except:
+            pass
 
 async def mostrar_historico(query, usuario):
     """Mostra histórico de vídeos."""
-    try:
-        with open('banner_historico.png', 'rb') as banner_file:
-            await query.message.reply_photo(
-                photo=banner_file,
-                caption='Seu Histórico!',
-                parse_mode='HTML'
-            )
-    except FileNotFoundError:
-        logger.warning('Banner de histórico não encontrado!')
+
     
     historico = obter_historico(usuario['user_id'], 10)
     
@@ -814,23 +810,29 @@ async def mostrar_historico(query, usuario):
     
     keyboard = [[InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')]]
     
-    await query.edit_message_text(
-        texto,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode='HTML'
-    )
+    try:
+        with open('banner_historico.png', 'rb') as banner_file:
+            await query.edit_message_media(
+                media=InputMediaPhoto(banner_file),
+                caption=texto,
+                parse_mode='HTML'
+            )
+            await query.edit_message_reply_markup(
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+    except:
+        try:
+            await query.edit_message_text(
+                texto,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='HTML'
+            )
+        except:
+            pass
 
 async def mostrar_config(query, usuario):
     """Mostra opções de configuração."""
-    try:
-        with open('banner_config.png', 'rb') as banner_file:
-            await query.message.reply_photo(
-                photo=banner_file,
-                caption='Suas Configurações!',
-                parse_mode='HTML'
-            )
-    except FileNotFoundError:
-        logger.warning('Banner de configuração não encontrado!')
+
     
     texto = f'''⚙️ <b>CONFIGURAÇÕES</b>
 
@@ -843,29 +845,35 @@ O que você quer alterar?'''
     
     keyboard = [
         [InlineKeyboardButton('👤 Alterar Nome', callback_data='alt_nome')],
-        [InlineKeyboardButton('🏙️ Alterar Cidade', callback_data='alt_cidade')],
+        [InlineKeyboardButton('🏛️ Alterar Cidade', callback_data='alt_cidade')],
         [InlineKeyboardButton('🎂 Alterar Idade', callback_data='alt_idade')],
         [InlineKeyboardButton('📱 Alterar PIX', callback_data='alterar_pix')],
         [InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')]
     ]
     
-    await query.edit_message_text(
-        texto,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode='HTML'
-    )
+    try:
+        with open('banner_config.png', 'rb') as banner_file:
+            await query.edit_message_media(
+                media=InputMediaPhoto(banner_file),
+                caption=texto,
+                parse_mode='HTML'
+            )
+            await query.edit_message_reply_markup(
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+    except:
+        try:
+            await query.edit_message_text(
+                texto,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='HTML'
+            )
+        except:
+            pass
 
 async def mostrar_suporte(query, usuario):
     """Mostra informações de suporte."""
-    try:
-        with open('banner_suporte.png', 'rb') as banner_file:
-            await query.message.reply_photo(
-                photo=banner_file,
-                caption='Suporte PlayLucro!',
-                parse_mode='HTML'
-            )
-    except FileNotFoundError:
-        logger.warning('Banner de suporte não encontrado!')
+
     
     texto = '''💬 <b>SUPORTE</b>
 
@@ -878,11 +886,25 @@ Clique no botão abaixo para ir ao nosso grupo de suporte:'''
         [InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')]
     ]
     
-    await query.edit_message_text(
-        texto,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode='HTML'
-    )
+    try:
+        with open('banner_suporte.png', 'rb') as banner_file:
+            await query.edit_message_media(
+                media=InputMediaPhoto(banner_file),
+                caption=texto,
+                parse_mode='HTML'
+            )
+            await query.edit_message_reply_markup(
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+    except:
+        try:
+            await query.edit_message_text(
+                texto,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='HTML'
+            )
+        except:
+            pass
 
 async def receber_texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler para receber texto (PIX, Nome, Cidade, Idade)."""
