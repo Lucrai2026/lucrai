@@ -450,11 +450,17 @@ async def cancelar_cadastro(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def menu_principal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Mostra o menu principal."""
-    user_id = update.effective_user.id
+    if hasattr(update, 'effective_user'):
+        user_id = update.effective_user.id
+        message_obj = update.message
+    else:
+        user_id = update.from_user.id
+        message_obj = update.message
+    
     usuario = obter_usuario(user_id)
     
     if not usuario:
-        await update.message.reply_text('Usuário não encontrado. Digite /start para cadastrar.')
+        await message_obj.reply_text('Usuário não encontrado. Digite /start para cadastrar.')
         return
     
     texto = f'''👤 <b>PAINEL DO USUÁRIO</b>
@@ -464,7 +470,7 @@ async def menu_principal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 O que você quer fazer?'''
     
-    await update.message.reply_text(
+    await message_obj.reply_text(
         texto,
         reply_markup=get_menu_keyboard(),
         parse_mode='HTML'
