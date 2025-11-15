@@ -882,10 +882,8 @@ def main():
     # Handlers
     app.add_handler(CommandHandler('start', start))
     app.add_handler(CommandHandler('menu', menu_command))
-    app.add_handler(CallbackQueryHandler(button_callback))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, receber_texto))
     
-    # Conversation handler para cadastro
+    # Conversation handler para cadastro (DEVE SER ANTES do button_callback)
     conv_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(cadastrar_callback, pattern='cadastrar')],
         states={
@@ -901,6 +899,8 @@ def main():
     )
     
     app.add_handler(conv_handler)
+    app.add_handler(CallbackQueryHandler(button_callback))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, receber_texto))
     
     # Iniciar bot
     logger.info('✅ Bot iniciado com sucesso!')
