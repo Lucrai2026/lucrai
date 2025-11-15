@@ -310,6 +310,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if usuario_existe(user_id):
         await menu_principal(update, context)
     else:
+        # Enviar imagem de boas-vindas
+        try:
+            with open('banner.png', 'rb') as banner_file:
+                await update.message.reply_photo(
+                    photo=banner_file,
+                    caption='Bem-vindo ao PlayLucro! 🎉',
+                    parse_mode='HTML'
+                )
+        except FileNotFoundError:
+            logger.warning('⚠️ Banner não encontrado!')
+        
         texto = '''🎬 <b>Seja bem-vindo ao PlayLucro!</b> 🚀
 
 PlayLucro é a sua plataforma de renda extra no Telegram.
