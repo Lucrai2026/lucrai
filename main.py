@@ -23,7 +23,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Token do bot
-TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '8403406649:AAGGbL2TgwllrcT8CZ_m5c2xMgOmEByusyU')
+TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '8403406649:AAHbopbUcKYTSHXjdS3LX3gvkKMBe560s8o')
 
 # Banco de dados
 DB_FILE = 'lucrai_db.sqlite'
