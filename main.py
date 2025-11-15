@@ -592,15 +592,14 @@ async def mostrar_videos(query, usuario):
     # Enviar imagem com menu junto
     try:
         with open('banner_videos.png', 'rb') as banner_file:
-            await query.edit_message_media(
-                media=InputMediaPhoto(banner_file),
+            await query.message.reply_photo(
+                photo=banner_file,
                 caption=texto,
+                reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='HTML'
             )
-            await query.edit_message_reply_markup(
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-    except:
+    except Exception as e:
+        logger.error(f'Erro ao enviar vídeos: {e}')
         try:
             await query.edit_message_text(
                 texto,
@@ -691,15 +690,14 @@ Continue assistindo vídeos para ganhar mais! 💪'''
     
     try:
         with open('banner_saque.png', 'rb') as banner_file:
-            await query.edit_message_media(
-                media=InputMediaPhoto(banner_file),
+            await query.message.reply_photo(
+                photo=banner_file,
                 caption=texto,
+                reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='HTML'
             )
-            await query.edit_message_reply_markup(
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-    except:
+    except Exception as e:
+        logger.error(f'Erro ao enviar saque: {e}')
         try:
             await query.edit_message_text(
                 texto,
@@ -768,15 +766,14 @@ Comece a indicar e ganhe mais! 🚀'''
     
     try:
         with open('banner_afiliado.png', 'rb') as banner_file:
-            await query.edit_message_media(
-                media=InputMediaPhoto(banner_file),
+            await query.message.reply_photo(
+                photo=banner_file,
                 caption=texto,
+                reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='HTML'
             )
-            await query.edit_message_reply_markup(
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-    except:
+    except Exception as e:
+        logger.error(f'Erro ao enviar afiliado: {e}')
         try:
             await query.edit_message_text(
                 texto,
@@ -812,15 +809,14 @@ async def mostrar_historico(query, usuario):
     
     try:
         with open('banner_historico.png', 'rb') as banner_file:
-            await query.edit_message_media(
-                media=InputMediaPhoto(banner_file),
+            await query.message.reply_photo(
+                photo=banner_file,
                 caption=texto,
+                reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='HTML'
             )
-            await query.edit_message_reply_markup(
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-    except:
+    except Exception as e:
+        logger.error(f'Erro ao enviar histórico: {e}')
         try:
             await query.edit_message_text(
                 texto,
@@ -853,15 +849,14 @@ O que você quer alterar?'''
     
     try:
         with open('banner_config.png', 'rb') as banner_file:
-            await query.edit_message_media(
-                media=InputMediaPhoto(banner_file),
+            await query.message.reply_photo(
+                photo=banner_file,
                 caption=texto,
+                reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='HTML'
             )
-            await query.edit_message_reply_markup(
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-    except:
+    except Exception as e:
+        logger.error(f'Erro ao enviar configuração: {e}')
         try:
             await query.edit_message_text(
                 texto,
@@ -888,15 +883,14 @@ Clique no botão abaixo para ir ao nosso grupo de suporte:'''
     
     try:
         with open('banner_suporte.png', 'rb') as banner_file:
-            await query.edit_message_media(
-                media=InputMediaPhoto(banner_file),
+            await query.message.reply_photo(
+                photo=banner_file,
                 caption=texto,
+                reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='HTML'
             )
-            await query.edit_message_reply_markup(
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-    except:
+    except Exception as e:
+        logger.error(f'Erro ao enviar suporte: {e}')
         try:
             await query.edit_message_text(
                 texto,
