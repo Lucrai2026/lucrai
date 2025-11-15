@@ -1,577 +1,902 @@
-# =================================================================================
-# ||||||||||||||||||||||||||| PROJETO LUCRAÍ ||||||||||||||||||||||||||||||||||||
-# =================================================================================
-# Arquivo: main.py
-# Descrição: Código principal do bot do Telegram para o projeto Lucraí.
-# Versão: 1.6 (Correção Final do Fluxo de Cadastro)
-# =================================================================================
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-import logging
+"""
+PlayLucro Bot - Sistema Completo de Monetização de Vídeos
+Bot Telegram para ganhar dinheiro assistindo vídeos
+Versão: 2.0 (Sistema Completo)
+"""
+
+import os
 import sqlite3
-from typing import Optional
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    MessageHandler,
-    ContextTypes,
-    ConversationHandler,
-    filters,
-)
+import logging
+import uuid
+from datetime import datetime
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ConversationHandler, filters, ContextTypes
 
-# --- Configuração de Logging ---
+# Configuração de logging
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# --- Definição dos Estágios da Conversa ---
-INICIO, NOME, DATA_NASCIMENTO, CIDADE, EMAIL, CONFIRMACAO, MENU, SACAR_SALDO, RECEBER_PIX, PESQUISAS, RECEBER_CODIGO_PESQUISA, APPS, RECEBER_CONFIRMACAO_APP = range(13)
+# Token do bot
+TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '8403406649:AAGGbL2TgwllrcT8CZ_m5c2xMgOmEByusyU')
 
-DB_NAME = "lucrai_db.sqlite"
+# Banco de dados
+DB_FILE = 'lucrai_db.sqlite'
 
-# =================================================================================
-# |||||||||||||||||||||||||||| FUNÇÕES DE BANCO DE DADOS ||||||||||||||||||||||||||
-# =================================================================================
+# Estados da conversa
+NOME, CIDADE, IDADE, CONFIRMACAO, PIX_SAQUE, ALTERAR_CAMPO = range(6)
+ESTADO_MENU = 10
 
-def init_db() -> None:
-    """Inicializa o banco de dados e cria a tabela de usuários se não existir."""
-    conn = sqlite3.connect(DB_NAME)
+# ============================================================================
+# BANCO DE DADOS
+# ============================================================================
+
+def criar_tabelas():
+    """Cria as tabelas do banco de dados."""
+    conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute(
-        """
+    
+    # Tabela de usuários
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
             user_id INTEGER PRIMARY KEY,
             nome TEXT NOT NULL,
-            data_nascimento TEXT,
             cidade TEXT,
-            email TEXT UNIQUE NOT NULL,
+            idade INTEGER,
             saldo REAL DEFAULT 0.0,
-            indicador_id INTEGER,
-            chave_pix TEXT
+            pix TEXT,
+            afiliado_de INTEGER,
+            link_afiliado TEXT UNIQUE,
+            data_cadastro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-        """
-    )
-    conn.commit()
-    conn.close()
-
-def update_user_pix(user_id: int, chave_pix: str) -> None:
-    """Atualiza a chave PIX de um usuário no banco de dados."""
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        UPDATE usuarios SET chave_pix = ? WHERE user_id = ?
-        """,
-        (chave_pix, user_id),
-    )
-    conn.commit()
-    conn.close()
-
-def get_user(user_id: int) -> Optional[tuple]:
-    """Busca um usuário pelo ID no banco de dados."""
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM usuarios WHERE user_id = ?", (user_id,))
-    user = cursor.fetchone()
-    conn.close()
-    return user
-
-def update_user_saldo(user_id: int, valor: float) -> None:
-    """Atualiza o saldo de um usuário no banco de dados."""
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        UPDATE usuarios SET saldo = saldo + ? WHERE user_id = ?
-        """,
-        (valor, user_id),
-    )
-    conn.commit()
-    conn.close()
-
-def save_user(user_id: int, nome: str, data_nascimento: str, cidade: str, email: str) -> None:
-    """Salva um novo usuário no banco de dados."""
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    try:
-        cursor.execute(
-            """
-            INSERT INTO usuarios (user_id, nome, data_nascimento, cidade, email)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (user_id, nome, data_nascimento, cidade, email),
+    ''')
+    
+    # Tabela de vídeos
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS videos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo TEXT NOT NULL,
+            url TEXT NOT NULL,
+            valor REAL NOT NULL,
+            duracao INTEGER,
+            fonte TEXT DEFAULT 'teste',
+            data_adicao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            ativo BOOLEAN DEFAULT 1
         )
-        conn.commit()
-    except sqlite3.IntegrityError:
-        logger.error(f"Erro de integridade ao salvar usuário {user_id}. Email já existe ou user_id duplicado.")
-    finally:
-        conn.close()
-
-# =================================================================================
-# |||||||||||||||||||||||| FUNÇÕES DO FLUXO DE CADASTRO |||||||||||||||||||||||||
-# =================================================================================
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Inicia a conversa de cadastro ou exibe o menu principal se já estiver cadastrado."""
-    user = update.effective_user
-    logger.info(f"Usuário {user.username} (ID: {user.id}) iniciou o bot.")
+    ''')
     
-    # Lógica de checagem de cadastro (agora com DB)
-    user_data = get_user(user.id)
-    if user_data:
-        # Salva os dados do DB no user_data do contexto para uso posterior
-        context.user_data["nome"] = user_data[1]
-        context.user_data["saldo"] = user_data[5]
-        await update.message.reply_text("Bem-vindo de volta! Seu painel está pronto.")
-        return await menu_principal(update, context)
+    # Tabela de visualizações
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS visualizacoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            video_id INTEGER NOT NULL,
+            data_visualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            status TEXT DEFAULT 'completo',
+            valor_ganho REAL,
+            FOREIGN KEY (user_id) REFERENCES usuarios(user_id),
+            FOREIGN KEY (video_id) REFERENCES videos(id)
+        )
+    ''')
+    
+    # Tabela de transações
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS transacoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            tipo TEXT,
+            valor REAL NOT NULL,
+            descricao TEXT,
+            data_transacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES usuarios(user_id)
+        )
+    ''')
+    
+    # Tabela de saques
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS saques (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            valor REAL NOT NULL,
+            pix TEXT,
+            status TEXT DEFAULT 'pendente',
+            data_solicitacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            data_pagamento TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES usuarios(user_id)
+        )
+    ''')
+    
+    # Inserir vídeos de teste
+    cursor.execute('SELECT COUNT(*) FROM videos')
+    if cursor.fetchone()[0] == 0:
+        videos_teste = [
+            ('Vídeo 01 - Ganhe Dinheiro', 'https://example.com/video1.mp4', 0.55, 60),
+            ('Vídeo 02 - Assista e Lucre', 'https://example.com/video2.mp4', 0.45, 45),
+            ('Vídeo 03 - Renda Extra', 'https://example.com/video3.mp4', 0.30, 30),
+            ('Vídeo 04 - PlayLucro', 'https://example.com/video4.mp4', 0.75, 90),
+            ('Vídeo 05 - Monetização', 'https://example.com/video5.mp4', 0.50, 50),
+        ]
+        cursor.executemany(
+            'INSERT INTO videos (titulo, url, valor, duracao) VALUES (?, ?, ?, ?)',
+            videos_teste
+        )
+    
+    conn.commit()
+    conn.close()
 
-    texto_boas_vindas = (
-        "<b>Seja bem-vindo ao Lucraí!</b> 🚀\n\n"
-        "O Lucraí é a sua plataforma de renda extra no Telegram. Clicou, Lucrou!\n\n"
-        "<b>Como funciona?</b>\n"
-        "Você realiza tarefas simples (ver vídeos, responder pesquisas, testar apps) e recebe dinheiro na hora, direto no seu saldo.\n\n"
-        "Vamos começar seu cadastro para liberar o acesso ao Painel de Controle!"
+def usuario_existe(user_id: int) -> bool:
+    """Verifica se o usuário existe."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('SELECT user_id FROM usuarios WHERE user_id = ?', (user_id,))
+    existe = cursor.fetchone() is not None
+    conn.close()
+    return existe
+
+def obter_usuario(user_id: int) -> dict:
+    """Obtém dados do usuário."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT user_id, nome, cidade, idade, saldo, pix, afiliado_de, link_afiliado
+        FROM usuarios WHERE user_id = ?
+    ''', (user_id,))
+    resultado = cursor.fetchone()
+    conn.close()
+    
+    if resultado:
+        return {
+            'user_id': resultado[0],
+            'nome': resultado[1],
+            'cidade': resultado[2],
+            'idade': resultado[3],
+            'saldo': resultado[4],
+            'pix': resultado[5],
+            'afiliado_de': resultado[6],
+            'link_afiliado': resultado[7]
+        }
+    return None
+
+def atualizar_saldo(user_id: int, valor: float, tipo: str = 'ganho', descricao: str = ''):
+    """Atualiza o saldo do usuário."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    
+    # Atualizar saldo
+    cursor.execute('UPDATE usuarios SET saldo = saldo + ? WHERE user_id = ?', (valor, user_id))
+    
+    # Registrar transação
+    cursor.execute('''
+        INSERT INTO transacoes (user_id, tipo, valor, descricao)
+        VALUES (?, ?, ?, ?)
+    ''', (user_id, tipo, valor, descricao))
+    
+    conn.commit()
+    conn.close()
+
+def obter_videos() -> list:
+    """Obtém lista de vídeos disponíveis."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, titulo, valor, duracao FROM videos WHERE ativo = 1')
+    videos = cursor.fetchall()
+    conn.close()
+    return videos
+
+def registrar_visualizacao(user_id: int, video_id: int, valor: float):
+    """Registra uma visualização de vídeo."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    
+    # Registrar visualização
+    cursor.execute('''
+        INSERT INTO visualizacoes (user_id, video_id, status, valor_ganho)
+        VALUES (?, ?, 'completo', ?)
+    ''', (user_id, video_id, valor))
+    
+    # Atualizar saldo
+    atualizar_saldo(user_id, valor, 'ganho', f'Vídeo assistido #{video_id}')
+    
+    # Se tem afiliado, dar comissão
+    usuario = obter_usuario(user_id)
+    if usuario and usuario['afiliado_de']:
+        comissao = valor * 0.10  # 10% para afiliado
+        atualizar_saldo(usuario['afiliado_de'], comissao, 'comissao', f'Comissão de afiliado - Usuário {user_id}')
+    
+    conn.commit()
+    conn.close()
+
+def obter_historico(user_id: int, limite: int = 10) -> list:
+    """Obtém histórico de vídeos assistidos."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT v.titulo, vis.data_visualizacao, vis.status, vis.valor_ganho
+        FROM visualizacoes vis
+        JOIN videos v ON vis.video_id = v.id
+        WHERE vis.user_id = ?
+        ORDER BY vis.data_visualizacao DESC
+        LIMIT ?
+    ''', (user_id, limite))
+    historico = cursor.fetchall()
+    conn.close()
+    return historico
+
+def contar_indicados(user_id: int) -> int:
+    """Conta quantos usuários foram indicados."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('SELECT COUNT(*) FROM usuarios WHERE afiliado_de = ?', (user_id,))
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count
+
+def obter_comissoes(user_id: int) -> float:
+    """Obtém total de comissões ganhas."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT SUM(valor) FROM transacoes
+        WHERE user_id = ? AND tipo = 'comissao'
+    ''', (user_id,))
+    resultado = cursor.fetchone()[0]
+    conn.close()
+    return resultado or 0.0
+
+def atualizar_usuario(user_id: int, **kwargs):
+    """Atualiza dados do usuário."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    
+    campos = []
+    valores = []
+    
+    for chave, valor in kwargs.items():
+        campos.append(f'{chave} = ?')
+        valores.append(valor)
+    
+    valores.append(user_id)
+    
+    query = f'UPDATE usuarios SET {", ".join(campos)} WHERE user_id = ?'
+    cursor.execute(query, valores)
+    
+    conn.commit()
+    conn.close()
+
+def solicitar_saque(user_id: int, valor: float, pix: str):
+    """Cria uma solicitação de saque."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    
+    # Registrar saque
+    cursor.execute('''
+        INSERT INTO saques (user_id, valor, pix, status)
+        VALUES (?, ?, ?, 'pendente')
+    ''', (user_id, valor, pix))
+    
+    # Reduzir saldo
+    cursor.execute('UPDATE usuarios SET saldo = saldo - ? WHERE user_id = ?', (valor, user_id))
+    
+    # Registrar transação
+    cursor.execute('''
+        INSERT INTO transacoes (user_id, tipo, valor, descricao)
+        VALUES (?, ?, ?, ?)
+    ''', (user_id, 'saque', -valor, f'Saque solicitado - PIX: {pix}'))
+    
+    conn.commit()
+    conn.close()
+
+# ============================================================================
+# HANDLERS
+# ============================================================================
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler para /start."""
+    user_id = update.effective_user.id
+    
+    # Verificar se vem de link de afiliado
+    if context.args and context.args[0].startswith('ref_'):
+        try:
+            afiliado_id = int(context.args[0].split('_')[1])
+            context.user_data['afiliado_de'] = afiliado_id
+        except (ValueError, IndexError):
+            pass
+    
+    if usuario_existe(user_id):
+        await menu_principal(update, context)
+    else:
+        await update.message.reply_photo(
+            photo=open('banner.png', 'rb') if os.path.exists('banner.png') else None,
+            caption='''🎬 <b>Seja bem-vindo ao PlayLucro!</b> 🚀
+
+PlayLucro é a sua plataforma de renda extra no Telegram.
+<b>Clicou, Assistiu e Lucrou!</b> 💰
+
+📖 <b>Como funciona?</b>
+Você realiza tarefas simples: assistir vídeos que o PlayLucro disponibiliza para você.
+
+🎯 <b>Veja como é simples:</b>
+
+1️⃣ Empresas de publicidade nos enviam vídeos
+2️⃣ Nós disponibilizamos para você assistir
+3️⃣ A empresa nos paga pela visualização
+4️⃣ Você recebe sua parte aqui no PlayLucro! 💵
+
+🔥 <b>Chega de enganações na internet!</b>
+Vamos com tudo no PlayLucro - Deu Play, Lucrou! 🎮💸
+
+Pronto para começar essa jornada de renda extra incrível?''',
+            parse_mode='HTML'
+        )
+        
+        keyboard = [[InlineKeyboardButton("🚀 Clique aqui para Cadastrar", callback_data='cadastrar')]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            'Clique no botão abaixo para começar seu cadastro:',
+            reply_markup=reply_markup
+        )
+
+async def cadastrar_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Inicia o processo de cadastro."""
+    query = update.callback_query
+    await query.answer()
+    
+    await query.edit_message_text(
+        text='Ótimo! 🎉\n\nVamos começar seu cadastro!\n\nQual é o seu <b>nome</b>?',
+        parse_mode='HTML'
     )
     
-    reply_keyboard = [["🚀 Sim, vamos começar!"]]
-    
-    await update.message.reply_html(
-        texto_boas_vindas,
-        reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True, resize_keyboard=True
-        ),
-    )
-    return INICIO
-
-async def iniciar_cadastro(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Inicia o processo de cadastro após o usuário clicar no botão."""
-    await update.message.reply_text("Ótimo! Para começar, qual o seu nome completo?", reply_markup=ReplyKeyboardRemove())
     return NOME
 
-async def receber_nome(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["nome"] = update.message.text
-    logger.info(f"Nome recebido: {update.message.text}")
-    await update.message.reply_text("Obrigado! Agora, qual é a sua data de nascimento? (Formato: DD/MM/AAAA)")
-    return DATA_NASCIMENTO
-
-async def receber_data_nascimento(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["data_nascimento"] = update.message.text
-    logger.info(f"Data de Nascimento recebida: {update.message.text}")
-    await update.message.reply_text("Perfeito. Em qual cidade você mora? Isso nos ajuda a encontrar as melhores atividades na sua região para você!")
+async def receber_nome(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Recebe o nome do usuário."""
+    context.user_data['nome'] = update.message.text
+    
+    await update.message.reply_text(
+        f'Prazer, {context.user_data["nome"]}! 😊\n\nQual é a sua <b>cidade</b>?',
+        parse_mode='HTML'
+    )
+    
     return CIDADE
 
-async def receber_cidade(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["cidade"] = update.message.text
-    logger.info(f"Cidade recebida: {update.message.text}")
-    await update.message.reply_text("Quase lá! Qual é o seu melhor e-mail para contato e notificações?")
-    return EMAIL
-
-async def receber_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["email"] = update.message.text
-    logger.info(f"Email recebido: {update.message.text}")
-
-    nome = context.user_data.get("nome", "Não informado")
-    data_nascimento = context.user_data.get("data_nascimento", "Não informada")
-    cidade = context.user_data.get("cidade", "Não informada")
-    email = context.user_data.get("email", "Não informado")
+async def receber_cidade(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Recebe a cidade do usuário."""
+    context.user_data['cidade'] = update.message.text
     
-    reply_keyboard = [["Sim, está tudo certo!"], ["Não, quero corrigir"]]
-    
-    await update.message.reply_html(
-        f"Perfeito! Vamos confirmar seus dados:\n\n"
-        f"👤 <b>Nome:</b> {nome}\n"
-        f"🎂 <b>Nascimento:</b> {data_nascimento}\n"
-        f"🏙️ <b>Cidade:</b> {cidade}\n"
-        f"📧 <b>Email:</b> {email}\n\n"
-        "Está tudo correto?",
-        reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True, resize_keyboard=True
-        ),
-    )
-    return CONFIRMACAO
-
-async def receber_confirmacao(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    resposta = update.message.text
-    if resposta == "Sim, está tudo certo!":
-        logger.info("Usuário confirmou o cadastro.")
-        
-        user_id = update.effective_user.id
-        nome = context.user_data.get("nome", "")
-        data_nascimento = context.user_data.get("data_nascimento", "")
-        cidade = context.user_data.get("cidade", "")
-        email = context.user_data.get("email", "")
-        
-        save_user(user_id, nome, data_nascimento, cidade, email)
-        
-        # O saldo inicial é 0.0, mas o menu_principal espera que esteja no context.user_data
-        context.user_data["saldo"] = 0.0
-        
-        await update.message.reply_text("✅ Cadastro concluído com sucesso!", reply_markup=ReplyKeyboardRemove())
-        return await menu_principal(update, context)
-    else:
-        logger.info("Usuário optou por corrigir os dados.")
-        await update.message.reply_text("Ok, vamos começar de novo.", reply_markup=ReplyKeyboardRemove())
-        return await start(update, context)
-
-# =================================================================================
-# |||||||||||||||||||||||||||| FUNÇÕES DE NAVEGAÇÃO ||||||||||||||||||||||||||||
-# =================================================================================
-
-async def menu_videos(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Exibe o menu de tarefas de vídeos."""
-    
-    videos_keyboard = [
-        ["🎥 Vídeo 1 (R$ 0.50)", "🎥 Vídeo 2 (R$ 0.75)"],
-        ["🎥 Vídeo 3 (R$ 1.00)", "⬅️ Voltar ao Menu Principal"],
-    ]
-    
-    await update.message.reply_html(
-        "<b>🎬 Ganhe assistindo a vídeos</b>\n\n"
-        "Assista aos vídeos abaixo e receba o valor creditado em seu saldo imediatamente!",
-        reply_markup=ReplyKeyboardMarkup(
-            videos_keyboard, resize_keyboard=True, one_time_keyboard=False
-        ),
-    )
-    return MENU
-
-async def assistir_video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Simula o ato de assistir a um vídeo e credita o saldo."""
-    texto = update.message.text
-    user_id = update.effective_user.id
-    
-    if "Vídeo 1" in texto:
-        valor = 0.50
-    elif "Vídeo 2" in texto:
-        valor = 0.75
-    elif "Vídeo 3" in texto:
-        valor = 1.00
-    else:
-        return await navegar_menu(update, context) # Volta para o menu principal se for "Voltar" ou não reconhecido
-        
-    update_user_saldo(user_id, valor)
-    
-    await update.message.reply_html(
-        f"✅ Você assistiu ao {texto.split('(')[0].strip()} e recebeu <b>R$ {valor:.2f}</b> em seu saldo!\n\n"
-        "Selecione o próximo vídeo ou volte ao menu principal."
-    )
-    return MENU
-
-async def menu_pesquisas(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Exibe o menu de tarefas de pesquisas."""
-    
-    pesquisas_keyboard = [
-        ["📝 Pesquisa Rápida (R$ 1.50)"],
-        ["📝 Pesquisa Detalhada (R$ 3.00)"],
-        ["⬅️ Voltar ao Menu Principal"],
-    ]
-    
-    await update.message.reply_html(
-        "<b>📝 Ganhe respondendo pesquisas</b>\n\n"
-        "Selecione uma pesquisa para começar. Ao final, você receberá um código de confirmação para creditar seu saldo.",
-        reply_markup=ReplyKeyboardMarkup(
-            pesquisas_keyboard, resize_keyboard=True, one_time_keyboard=False
-        ),
-    )
-    return PESQUISAS
-
-async def iniciar_pesquisa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Simula o início de uma pesquisa e pede o código de confirmação."""
-    texto = update.message.text
-    
-    if "Pesquisa Rápida" in texto:
-        valor = 1.50
-        link = "https://link-simulado-pesquisa-rapida.com"
-    elif "Pesquisa Detalhada" in texto:
-        valor = 3.00
-        link = "https://link-simulado-pesquisa-detalhada.com"
-    else:
-        return await navegar_menu(update, context) # Volta para o menu principal se for "Voltar" ou não reconhecido
-        
-    context.user_data["pesquisa_valor"] = valor
-    
-    await update.message.reply_html(
-        f"✅ Você selecionou: <b>{texto}</b>\n\n"
-        f"Clique no link para responder a pesquisa: <a href='{link}'>{link}</a>\n\n"
-        "<b>IMPORTANTE:</b> Ao final da pesquisa, você receberá um **CÓDIGO DE CONFIRMAÇÃO**. Digite-o aqui para receber seu crédito."
-    )
-    return RECEBER_CODIGO_PESQUISA
-
-async def receber_codigo_pesquisa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Recebe o código de confirmação e credita o saldo."""
-    codigo = update.message.text
-    user_id = update.effective_user.id
-    valor = context.user_data.pop("pesquisa_valor", 0.0)
-    
-    # Lógica de validação de código simulada
-    if codigo.upper() == "LUCRAI123":
-        update_user_saldo(user_id, valor)
-        await update.message.reply_html(
-            f"🎉 **Parabéns!** O código foi validado com sucesso.\n\n"
-            f"Você recebeu <b>R$ {valor:.2f}</b> em seu saldo!\n\n"
-            "Selecione outra pesquisa ou volte ao menu principal."
-        )
-    else:
-        await update.message.reply_html(
-            "❌ **Código Inválido.** Por favor, verifique se digitou o código corretamente ou se a pesquisa foi concluída."
-        )
-        
-    return MENU
-
-async def menu_indicacao(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Gera e exibe o link de indicação do usuário."""
-    user_id = update.effective_user.id
-    
-    # O link de indicação é o link do bot com o user_id como parâmetro de start
-    link_indicacao = f"https://t.me/Lucrai_clicou_ganhou_bot?start={user_id}"
-    
-    await update.message.reply_html(
-        "<b>🔗 Indique e Ganhe</b>\n\n"
-        "Compartilhe seu link de indicação e ganhe uma comissão por cada amigo que se cadastrar e completar a primeira tarefa!\n\n"
-        f"<b>Seu Link de Indicação:</b>\n"
-        f"<a href='{link_indicacao}'>{link_indicacao}</a>\n\n"
-        "Basta clicar no link para copiar e enviar para seus amigos."
-    )
-    return MENU
-
-async def menu_apps(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Exibe o menu de tarefas de aplicativos."""
-    
-    apps_keyboard = [
-        ["📱 App X (R$ 5.00)"],
-        ["📱 App Y (R$ 7.50)"],
-        ["⬅️ Voltar ao Menu Principal"],
-    ]
-    
-    await update.message.reply_html(
-        "<b>📱 Ganhe testando aplicativos</b>\n\n"
-        "Selecione um aplicativo para instalar e testar. Você precisará enviar um print de tela para confirmar a instalação.",
-        reply_markup=ReplyKeyboardMarkup(
-            apps_keyboard, resize_keyboard=True, one_time_keyboard=False
-        ),
-    )
-    return APPS
-
-async def iniciar_app(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Simula o início de um teste de aplicativo e pede o print de tela."""
-    texto = update.message.text
-    
-    if "App X" in texto:
-        valor = 5.00
-        link = "https://link-simulado-app-x.com"
-    elif "App Y" in texto:
-        valor = 7.50
-        link = "https://link-simulado-app-y.com"
-    else:
-        return await navegar_menu(update, context) # Volta para o menu principal se for "Voltar" ou não reconhecido
-        
-    context.user_data["app_valor"] = valor
-    
-    await update.message.reply_html(
-        f"✅ Você selecionou: <b>{texto}</b>\n\n"
-        f"Instale o aplicativo por este link: <a href='{link}'>{link}</a>\n\n"
-        "<b>IMPORTANTE:</b> Após instalar e abrir o aplicativo, envie uma **FOTO (PRINT DE TELA)** da tela inicial do aplicativo para receber seu crédito."
-    )
-    return RECEBER_CONFIRMACAO_APP
-
-async def receber_confirmacao_app(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Recebe a foto de confirmação e credita o saldo."""
-    
-    if update.message.photo:
-        user_id = update.effective_user.id
-        valor = context.user_data.pop("app_valor", 0.0)
-        
-        # Lógica de validação de foto simulada (apenas verifica se a foto foi enviada)
-        update_user_saldo(user_id, valor)
-        
-        await update.message.reply_html(
-            f"🎉 **Confirmação Recebida!** Seu print de tela foi validado.\n\n"
-            f"Você recebeu <b>R$ {valor:.2f}</b> em seu saldo!\n\n"
-            "Selecione outro aplicativo ou volte ao menu principal."
-        )
-    else:
-        await update.message.reply_html(
-            "❌ **Confirmação Inválida.** Por favor, envie uma **FOTO (PRINT DE TELA)** da tela inicial do aplicativo."
-        )
-        
-    return MENU
-
-async def menu_sacar_saldo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Inicia o fluxo de saque, verificando o saldo e solicitando a chave PIX."""
-    user_id = update.effective_user.id
-    user_data = get_user(user_id)
-    
-    if not user_data:
-        await update.message.reply_text("Seu perfil não foi encontrado. Por favor, inicie o cadastro novamente com /start.")
-        return ConversationHandler.END
-        
-    saldo_float = user_data[5]
-    saldo = f"R$ {saldo_float:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    
-    if saldo_float < 20.0: # Valor mínimo de saque (exemplo)
-        await update.message.reply_html(
-            f"Seu saldo atual é de <b>{saldo}</b>.\n\n"
-            "O valor mínimo para saque é de <b>R$ 20,00</b>. Continue lucrando para atingir o valor!"
-        )
-        return MENU
-        
-    # Se tiver saldo suficiente, pede a chave PIX
-    await update.message.reply_html(
-        f"Seu saldo atual é de <b>{saldo}</b>. Você pode sacar!\n\n"
-        "Para prosseguir, por favor, digite sua **chave PIX** (pode ser CPF, Email, Telefone ou Chave Aleatória)."
-    )
-    return RECEBER_PIX
-
-async def receber_chave_pix(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Recebe a chave PIX e finaliza o fluxo de saque."""
-    chave_pix = update.message.text
-    user_id = update.effective_user.id
-    
-    # Salva a chave PIX no banco de dados
-    update_user_pix(user_id, chave_pix)
-    
-    # Simulação de solicitação de saque
-    await update.message.reply_html(
-        f"✅ **Chave PIX ({chave_pix}) salva com sucesso!**\n\n"
-        "Sua solicitação de saque foi enviada para análise. O pagamento será processado em até 24 horas úteis."
-    )
-    
-    return MENU
-
-async def menu_perfil(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Exibe os dados cadastrais do usuário."""
-    user_id = update.effective_user.id
-    user_data = get_user(user_id)
-    
-    if not user_data:
-        await update.message.reply_text("Seu perfil não foi encontrado. Por favor, inicie o cadastro novamente com /start.")
-        return ConversationHandler.END
-        
-    # user_data: (user_id, nome, data_nascimento, cidade, email, saldo, indicador_id, chave_pix)
-    nome = user_data[1]
-    data_nascimento = user_data[2] if user_data[2] else "Não informado"
-    cidade = user_data[3] if user_data[3] else "Não informado"
-    email = user_data[4]
-    saldo_float = user_data[5]
-    saldo = f"R$ {saldo_float:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    chave_pix = user_data[7] if len(user_data) > 7 and user_data[7] else "Não cadastrada"
-    
-    texto_perfil = (
-        f"👤 <b>Seu Perfil</b>\n\n"
-        f"<b>Nome:</b> {nome}\n"
-        f"<b>Nascimento:</b> {data_nascimento}\n"
-        f"<b>Cidade:</b> {cidade}\n"
-        f"<b>Email:</b> {email}\n\n"
-        f"<b>Saldo Atual:</b> {saldo}\n"
-        f"<b>Chave PIX:</b> {chave_pix}\n\n"
-        "Em breve, você poderá editar seus dados aqui."
-    )
-    
-    await update.message.reply_html(texto_perfil)
-    return MENU
-
-async def menu_principal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Exibe o menu principal do bot."""
-    # Busca o saldo do contexto (preenchido na função start ou após o cadastro)
-    saldo_float = context.user_data.get("saldo", 0.0)
-    # Formatação para moeda brasileira
-    saldo = f"R$ {saldo_float:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    nome = context.user_data.get("nome", update.effective_user.first_name)
-    
-    menu_keyboard = [
-        ["🎬 Ganhe assistindo a vídeos", "📝 Ganhe respondendo pesquisas"],
-        ["📱 Ganhe testando aplicativos", "🔗 Indique e Ganhe"],
-        ["💰 Sacar Saldo", "👤 Meu Perfil"],
-    ]
-    
-    await update.message.reply_html(
-        f"<b>Painel de Controle de {nome}</b>\n\n"
-        f"💰 <b>Seu Saldo Atual:</b> {saldo}\n\n"
-        "Selecione uma opção abaixo para começar a lucrar:",
-        reply_markup=ReplyKeyboardMarkup(
-            menu_keyboard, resize_keyboard=True, one_time_keyboard=False
-        ),
-    )
-    return MENU
-
-async def navegar_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Lida com a navegação do menu principal."""
-    texto = update.message.text
-    
-    if texto == "💰 Sacar Saldo":
-        return await menu_sacar_saldo(update, context)
-    elif texto == "👤 Meu Perfil":
-        return await menu_perfil(update, context)
-    elif texto == "🎬 Ganhe assistindo a vídeos":
-        return await menu_videos(update, context)
-    elif texto == "⬅️ Voltar ao Menu Principal":
-        return await menu_principal(update, context)
-    elif texto == "📝 Ganhe respondendo pesquisas":
-        return await menu_pesquisas(update, context)
-    elif texto == "📱 Ganhe testando aplicativos":
-        return await menu_apps(update, context)
-    elif texto == "🔗 Indique e Ganhe":
-        return await menu_indicacao(update, context)
-    else:
-        await update.message.reply_text(f"Opção '{texto}' não reconhecida. Por favor, selecione uma opção do menu.")
-    
-    return MENU
-
-async def cancelar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Cancela o processo de cadastro."""
-    logger.info("Usuário cancelou a conversa.")
     await update.message.reply_text(
-        "Cadastro cancelado. Se mudar de ideia, é só digitar /start quando quiser.",
-        reply_markup=ReplyKeyboardRemove(),
+        f'Ótimo! Você é de {context.user_data["cidade"]}! 🏙️\n\nQuantos <b>anos</b> você tem?',
+        parse_mode='HTML'
     )
+    
+    return IDADE
+
+async def receber_idade(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Recebe a idade do usuário."""
+    try:
+        idade = int(update.message.text)
+        context.user_data['idade'] = idade
+        
+        texto = f'''📋 <b>Resumo do seu cadastro:</b>
+
+👤 <b>Nome:</b> {context.user_data['nome']}
+🏙️ <b>Cidade:</b> {context.user_data['cidade']}
+🎂 <b>Idade:</b> {context.user_data['idade']} anos
+
+Está tudo correto?'''
+        
+        keyboard = [
+            [InlineKeyboardButton('✅ Sim, está correto!', callback_data='confirmar_cadastro')],
+            [InlineKeyboardButton('❌ Não, quero corrigir', callback_data='cancelar_cadastro')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(texto, reply_markup=reply_markup, parse_mode='HTML')
+        
+        return CONFIRMACAO
+    
+    except ValueError:
+        await update.message.reply_text('Por favor, digite um número válido para a idade.')
+        return IDADE
+
+async def confirmar_cadastro(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Confirma o cadastro do usuário."""
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = query.from_user.id
+    link_afiliado = f'https://t.me/playlucro_bot?start=ref_{user_id}'
+    afiliado_de = context.user_data.get('afiliado_de')
+    
+    # Salvar no banco de dados
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO usuarios (user_id, nome, cidade, idade, saldo, link_afiliado, afiliado_de)
+        VALUES (?, ?, ?, ?, 0.0, ?, ?)
+    ''', (user_id, context.user_data['nome'], context.user_data['cidade'], context.user_data['idade'], link_afiliado, afiliado_de))
+    conn.commit()
+    conn.close()
+    
+    await query.edit_message_text(
+        text='''🎉 <b>Parabéns! Seu cadastro foi realizado com sucesso!</b>
+
+Bem-vindo ao PlayLucro! 🚀
+
+Em breve você poderá começar a ganhar dinheiro assistindo vídeos! 💵
+
+👤 <b>PAINEL DO USUÁRIO</b>
+
+👤 <b>Usuário:</b> ''' + context.user_data['nome'] + '''
+💰 <b>Saldo:</b> R$ 0,00
+
+O que você quer fazer?''',
+        parse_mode='HTML',
+        reply_markup=get_menu_keyboard()
+    )
+    
     return ConversationHandler.END
 
-# =================================================================================
-# |||||||||||||||||||||||||||| FUNÇÃO PRINCIPAL (MAIN) ||||||||||||||||||||||||||
-# =================================================================================
+async def cancelar_cadastro(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Cancela o cadastro."""
+    query = update.callback_query
+    await query.answer()
+    
+    await query.edit_message_text(text='Cadastro cancelado. Digite /start para começar novamente.')
+    
+    return ConversationHandler.END
 
-def main() -> None:
-    """Função principal que configura e inicia o bot."""
+async def menu_principal(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Mostra o menu principal."""
+    user_id = update.effective_user.id
+    usuario = obter_usuario(user_id)
     
-    # Inicializa o banco de dados antes de iniciar o bot
-    init_db()
-    
-    import os
-    
-    TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-    if not TOKEN:
-        logger.error("O token do bot não foi encontrado na variável de ambiente TELEGRAM_BOT_TOKEN.")
+    if not usuario:
+        await update.message.reply_text('Usuário não encontrado. Digite /start para cadastrar.')
         return
     
-    application = Application.builder().token(TOKEN).build()
-    logger.info("Bot iniciado com sucesso!")
+    texto = f'''👤 <b>PAINEL DO USUÁRIO</b>
 
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
-        states={
-            INICIO: [MessageHandler(filters.Regex("^(🚀 Sim, vamos começar!)$"), iniciar_cadastro)],
-            NOME: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex("^(🚀 Sim, vamos começar!)$"), receber_nome)],
-            DATA_NASCIMENTO: [MessageHandler(filters.TEXT & ~filters.COMMAND, receber_data_nascimento)],
-            CIDADE: [MessageHandler(filters.TEXT & ~filters.COMMAND, receber_cidade)],
-            EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, receber_email)],
-            CONFIRMACAO: [MessageHandler(filters.Regex("^(Sim, está tudo certo!|Não, quero corrigir)$"), receber_confirmacao)],
-            MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, navegar_menu)],
-            SACAR_SALDO: [MessageHandler(filters.TEXT & ~filters.COMMAND, menu_sacar_saldo)], # Não é usado, mas mantido para o fluxo
-            RECEBER_PIX: [MessageHandler(filters.TEXT & ~filters.COMMAND, receber_chave_pix)],
-            # Handler para o fluxo de vídeos
-            'VIDEOS': [MessageHandler(filters.Regex("^(🎥 Vídeo 1 \\(R\\$ 0\\.50\\)|🎥 Vídeo 2 \\(R\\$ 0\\.75\\)|🎥 Vídeo 3 \\(R\\$ 1\\.00\\)|⬅️ Voltar ao Menu Principal)$"), assistir_video)],
-            # Handler para o fluxo de pesquisas
-            PESQUISAS: [MessageHandler(filters.Regex("^(📝 Pesquisa Rápida \\(R\\$ 1\\.50\\)|📝 Pesquisa Detalhada \\(R\\$ 3\\.00\\)|⬅️ Voltar ao Menu Principal)$"), iniciar_pesquisa)],
-            RECEBER_CODIGO_PESQUISA: [MessageHandler(filters.TEXT & ~filters.COMMAND, receber_codigo_pesquisa)],
-            # Handler para o fluxo de aplicativos
-            APPS: [MessageHandler(filters.Regex("^(📱 App X \\(R\\$ 5\\.00\\)|📱 App Y \\(R\\$ 7\\.50\\)|⬅️ Voltar ao Menu Principal)$"), iniciar_app)],
-            RECEBER_CONFIRMACAO_APP: [MessageHandler(filters.PHOTO | filters.TEXT & ~filters.COMMAND, receber_confirmacao_app)],
-        },
-        fallbacks=[CommandHandler("cancelar", cancelar)],
+👤 <b>Usuário:</b> {usuario['nome']}
+💰 <b>Saldo:</b> R$ {usuario['saldo']:.2f}
+
+O que você quer fazer?'''
+    
+    await update.message.reply_text(
+        texto,
+        reply_markup=get_menu_keyboard(),
+        parse_mode='HTML'
     )
 
-    application.add_handler(conv_handler)
-    application.run_polling()
+def get_menu_keyboard():
+    """Retorna o teclado do menu principal."""
+    keyboard = [
+        [
+            InlineKeyboardButton('🎬 Assistir Vídeos', callback_data='videos'),
+            InlineKeyboardButton('🔗 Indique e Ganhe', callback_data='afiliado')
+        ],
+        [
+            InlineKeyboardButton('💸 Sacar Saldo', callback_data='saque'),
+            InlineKeyboardButton('📊 Histórico', callback_data='historico')
+        ],
+        [
+            InlineKeyboardButton('⚙️ Configurações', callback_data='config'),
+            InlineKeyboardButton('💬 Suporte', callback_data='suporte')
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
-if __name__ == "__main__":
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler para callbacks dos botões."""
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = query.from_user.id
+    usuario = obter_usuario(user_id)
+    
+    if query.data == 'videos':
+        await mostrar_videos(query, usuario)
+    elif query.data == 'saque':
+        await mostrar_saque(query, usuario)
+    elif query.data == 'afiliado':
+        await mostrar_afiliado(query, usuario)
+    elif query.data == 'historico':
+        await mostrar_historico(query, usuario)
+    elif query.data == 'config':
+        await mostrar_config(query, usuario)
+    elif query.data == 'suporte':
+        await mostrar_suporte(query, usuario)
+    elif query.data == 'menu':
+        await menu_principal(query, context)
+    elif query.data.startswith('video_'):
+        video_id = int(query.data.split('_')[1])
+        await assistir_video(query, usuario, video_id)
+    elif query.data == 'solicitar_saque':
+        await solicitar_saque_callback(query, usuario, context)
+    elif query.data == 'cadastrar_pix':
+        context.user_data['modo'] = 'cadastrar_pix'
+        await query.edit_message_text(
+            text='📱 <b>Cadastrar PIX</b>\n\nQual é sua chave PIX? (CPF, Email, Telefone ou Chave Aleatória)',
+            parse_mode='HTML'
+        )
+    elif query.data == 'alterar_pix':
+        context.user_data['modo'] = 'alterar_pix'
+        await query.edit_message_text(
+            text='📱 <b>Alterar PIX</b>\n\nQual é sua nova chave PIX?',
+            parse_mode='HTML'
+        )
+    elif query.data == 'alt_nome':
+        context.user_data['modo'] = 'alterar_nome'
+        await query.edit_message_text(
+            text='👤 <b>Alterar Nome</b>\n\nQual é seu novo nome?',
+            parse_mode='HTML'
+        )
+    elif query.data == 'alt_cidade':
+        context.user_data['modo'] = 'alterar_cidade'
+        await query.edit_message_text(
+            text='🏙️ <b>Alterar Cidade</b>\n\nQual é sua nova cidade?',
+            parse_mode='HTML'
+        )
+    elif query.data == 'alt_idade':
+        context.user_data['modo'] = 'alterar_idade'
+        await query.edit_message_text(
+            text='🎂 <b>Alterar Idade</b>\n\nQual é sua nova idade?',
+            parse_mode='HTML'
+        )
+
+async def mostrar_videos(query, usuario):
+    """Mostra lista de vídeos disponíveis."""
+    videos = obter_videos()
+    
+    if not videos:
+        await query.edit_message_text('Nenhum vídeo disponível no momento.')
+        return
+    
+    texto = '🎬 <b>VÍDEOS DISPONÍVEIS</b>\n\n'
+    
+    for video in videos:
+        video_id, titulo, valor, duracao = video
+        texto += f'📹 <b>{titulo}</b>\n'
+        texto += f'   Assista por completo e ganhe R$ {valor:.2f}\n'
+        texto += f'   ⏱️ Duração: {duracao}s\n\n'
+    
+    keyboard = []
+    for video in videos:
+        video_id, titulo, valor, duracao = video
+        keyboard.append([InlineKeyboardButton(f'▶️ {titulo}', callback_data=f'video_{video_id}')])
+    
+    keyboard.append([InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')])
+    
+    await query.edit_message_text(
+        texto,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='HTML'
+    )
+
+async def assistir_video(query, usuario, video_id):
+    """Processa a assistência de um vídeo."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('SELECT titulo, url, valor FROM videos WHERE id = ?', (video_id,))
+    video = cursor.fetchone()
+    conn.close()
+    
+    if not video:
+        await query.edit_message_text('Vídeo não encontrado.')
+        return
+    
+    titulo, url, valor = video
+    
+    # Registrar visualização
+    registrar_visualizacao(usuario['user_id'], video_id, valor)
+    
+    # Atualizar saldo do usuário
+    usuario_atualizado = obter_usuario(usuario['user_id'])
+    
+    texto = f'''✅ <b>Vídeo Assistido com Sucesso!</b>
+
+📹 <b>{titulo}</b>
+💰 <b>Você ganhou: R$ {valor:.2f}</b>
+
+💵 <b>Seu novo saldo:</b> R$ {usuario_atualizado['saldo']:.2f}
+
+Parabéns! Continue assistindo para ganhar mais! 🎉'''
+    
+    keyboard = [[InlineKeyboardButton('🎬 Voltar aos Vídeos', callback_data='videos')]]
+    
+    await query.edit_message_text(
+        texto,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='HTML'
+    )
+
+async def mostrar_saque(query, usuario):
+    """Mostra opções de saque."""
+    texto = f'''💸 <b>SACAR SALDO</b>
+
+💰 <b>Seu saldo atual:</b> R$ {usuario['saldo']:.2f}
+💵 <b>Saldo mínimo para sacar:</b> R$ 20,00
+
+'''
+    
+    if usuario['saldo'] >= 20.00:
+        if usuario['pix']:
+            texto += f'''✅ <b>Sua chave PIX:</b> {usuario['pix']}
+
+Clique em "Solicitar Saque" para processar o pagamento.
+Nossa equipe validará e você receberá em breve!'''
+            keyboard = [
+                [InlineKeyboardButton('✅ Solicitar Saque', callback_data='solicitar_saque')],
+                [InlineKeyboardButton('🔄 Alterar PIX', callback_data='alterar_pix')],
+                [InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')]
+            ]
+        else:
+            texto += '''Você ainda não cadastrou sua chave PIX.
+Clique em "Cadastrar PIX" para continuar.'''
+            keyboard = [
+                [InlineKeyboardButton('📝 Cadastrar PIX', callback_data='cadastrar_pix')],
+                [InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')]
+            ]
+    else:
+        falta = 20.00 - usuario['saldo']
+        texto += f'''❌ Você ainda não atingiu o saldo mínimo.
+Faltam R$ {falta:.2f} para poder sacar.
+
+Continue assistindo vídeos para ganhar mais! 💪'''
+        keyboard = [[InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')]]
+    
+    await query.edit_message_text(
+        texto,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='HTML'
+    )
+
+async def solicitar_saque_callback(query, usuario, context):
+    """Processa solicitação de saque."""
+    if not usuario['pix']:
+        await query.edit_message_text('Você precisa cadastrar uma chave PIX primeiro.')
+        return
+    
+    if usuario['saldo'] < 20.00:
+        await query.edit_message_text('Seu saldo é insuficiente para sacar.')
+        return
+    
+    # Registrar saque
+    solicitar_saque(usuario['user_id'], usuario['saldo'], usuario['pix'])
+    
+    texto = f'''✅ <b>Saque Solicitado com Sucesso!</b>
+
+💰 <b>Valor:</b> R$ {usuario['saldo']:.2f}
+📱 <b>PIX:</b> {usuario['pix']}
+
+Nossa equipe irá validar seu saque e você receberá em breve!
+
+Obrigado por usar o PlayLucro! 🎉'''
+    
+    keyboard = [[InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')]]
+    
+    await query.edit_message_text(
+        texto,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='HTML'
+    )
+
+async def mostrar_afiliado(query, usuario):
+    """Mostra programa de afiliados."""
+    link_afiliado = usuario['link_afiliado']
+    indicados = contar_indicados(usuario['user_id'])
+    comissoes = obter_comissoes(usuario['user_id'])
+    
+    texto = f'''🔗 <b>INDIQUE E GANHE</b>
+
+Compartilhe seu link único e ganhe 10% de tudo que seus indicados fizerem!
+
+🔗 <b>Seu link de indicação:</b>
+<code>{link_afiliado}</code>
+
+📊 <b>Seus indicados:</b> {indicados}
+💵 <b>Comissões ganhas:</b> R$ {comissoes:.2f}
+
+💡 <b>Como funciona:</b>
+• Você compartilha seu link
+• Seus amigos clicam e se cadastram
+• Para cada vídeo que eles assistem, você ganha 10%
+• Sua % pode aumentar de acordo com seu desempenho como afiliado
+
+💰 <b>Repartição com afiliado:</b>
+• 10% para você (afiliado)
+• 25% para PlayLucro
+• 65% para quem assiste o vídeo
+
+Comece a indicar e ganhe mais! 🚀'''
+    
+    keyboard = [[InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')]]
+    
+    await query.edit_message_text(
+        texto,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='HTML'
+    )
+
+async def mostrar_historico(query, usuario):
+    """Mostra histórico de vídeos."""
+    historico = obter_historico(usuario['user_id'], 10)
+    
+    if not historico:
+        texto = '📊 <b>HISTÓRICO</b>\n\nVocê ainda não assistiu a nenhum vídeo.'
+    else:
+        texto = '📊 <b>HISTÓRICO DE VÍDEOS</b>\n\n'
+        
+        for titulo, data, status, valor_ganho in historico:
+            status_emoji = '✅' if status == 'completo' else '❌'
+            valor_texto = f'R$ {valor_ganho:.2f}' if valor_ganho else 'Não recebido'
+            
+            # Formatar data
+            data_obj = datetime.fromisoformat(data)
+            data_formatada = data_obj.strftime('%d/%m/%Y %H:%M')
+            
+            texto += f'{status_emoji} <b>{titulo}</b>\n'
+            texto += f'   {data_formatada} - {valor_texto}\n\n'
+    
+    keyboard = [[InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')]]
+    
+    await query.edit_message_text(
+        texto,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='HTML'
+    )
+
+async def mostrar_config(query, usuario):
+    """Mostra opções de configuração."""
+    texto = f'''⚙️ <b>CONFIGURAÇÕES</b>
+
+👤 <b>Nome:</b> {usuario['nome']}
+🏙️ <b>Cidade:</b> {usuario['cidade']}
+🎂 <b>Idade:</b> {usuario['idade']} anos
+📱 <b>PIX:</b> {usuario['pix'] if usuario['pix'] else 'Não cadastrado'}
+
+O que você quer alterar?'''
+    
+    keyboard = [
+        [InlineKeyboardButton('👤 Alterar Nome', callback_data='alt_nome')],
+        [InlineKeyboardButton('🏙️ Alterar Cidade', callback_data='alt_cidade')],
+        [InlineKeyboardButton('🎂 Alterar Idade', callback_data='alt_idade')],
+        [InlineKeyboardButton('📱 Alterar PIX', callback_data='alterar_pix')],
+        [InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')]
+    ]
+    
+    await query.edit_message_text(
+        texto,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='HTML'
+    )
+
+async def mostrar_suporte(query, usuario):
+    """Mostra informações de suporte."""
+    texto = '''💬 <b>SUPORTE</b>
+
+Tem dúvidas ou precisa de ajuda?
+
+Clique no botão abaixo para ir ao nosso grupo de suporte:'''
+    
+    keyboard = [
+        [InlineKeyboardButton('💬 Ir para Suporte', url='https://t.me/playlucro_suporte')],
+        [InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')]
+    ]
+    
+    await query.edit_message_text(
+        texto,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='HTML'
+    )
+
+async def receber_texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler para receber texto (PIX, Nome, Cidade, Idade)."""
+    user_id = update.effective_user.id
+    texto = update.message.text
+    modo = context.user_data.get('modo')
+    
+    if modo == 'cadastrar_pix':
+        atualizar_usuario(user_id, pix=texto)
+        await update.message.reply_text(
+            f'✅ PIX cadastrado com sucesso!\n\nSua chave: {texto}',
+            parse_mode='HTML'
+        )
+        context.user_data['modo'] = None
+        usuario = obter_usuario(user_id)
+        await mostrar_saque(update.message, usuario)
+    
+    elif modo == 'alterar_pix':
+        atualizar_usuario(user_id, pix=texto)
+        await update.message.reply_text(
+            f'✅ PIX alterado com sucesso!\n\nSua nova chave: {texto}',
+            parse_mode='HTML'
+        )
+        context.user_data['modo'] = None
+        usuario = obter_usuario(user_id)
+        await mostrar_saque(update.message, usuario)
+    
+    elif modo == 'alterar_nome':
+        atualizar_usuario(user_id, nome=texto)
+        await update.message.reply_text(
+            f'✅ Nome alterado com sucesso!\n\nSeu novo nome: {texto}',
+            parse_mode='HTML'
+        )
+        context.user_data['modo'] = None
+        usuario = obter_usuario(user_id)
+        await mostrar_config(update.message, usuario)
+    
+    elif modo == 'alterar_cidade':
+        atualizar_usuario(user_id, cidade=texto)
+        await update.message.reply_text(
+            f'✅ Cidade alterada com sucesso!\n\nSua nova cidade: {texto}',
+            parse_mode='HTML'
+        )
+        context.user_data['modo'] = None
+        usuario = obter_usuario(user_id)
+        await mostrar_config(update.message, usuario)
+    
+    elif modo == 'alterar_idade':
+        try:
+            idade = int(texto)
+            atualizar_usuario(user_id, idade=idade)
+            await update.message.reply_text(
+                f'✅ Idade alterada com sucesso!\n\nSua nova idade: {idade}',
+                parse_mode='HTML'
+            )
+            context.user_data['modo'] = None
+            usuario = obter_usuario(user_id)
+            await mostrar_config(update.message, usuario)
+        except ValueError:
+            await update.message.reply_text('Por favor, digite um número válido.')
+
+async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler para /menu."""
+    await menu_principal(update, context)
+
+# ============================================================================
+# MAIN
+# ============================================================================
+
+def main():
+    """Função principal."""
+    # Criar tabelas
+    criar_tabelas()
+    
+    # Criar aplicação
+    app = Application.builder().token(TOKEN).build()
+    
+    # Handlers
+    app.add_handler(CommandHandler('start', start))
+    app.add_handler(CommandHandler('menu', menu_command))
+    app.add_handler(CallbackQueryHandler(button_callback))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, receber_texto))
+    
+    # Conversation handler para cadastro
+    conv_handler = ConversationHandler(
+        entry_points=[CallbackQueryHandler(cadastrar_callback, pattern='cadastrar')],
+        states={
+            NOME: [MessageHandler(filters.TEXT & ~filters.COMMAND, receber_nome)],
+            CIDADE: [MessageHandler(filters.TEXT & ~filters.COMMAND, receber_cidade)],
+            IDADE: [MessageHandler(filters.TEXT & ~filters.COMMAND, receber_idade)],
+            CONFIRMACAO: [
+                CallbackQueryHandler(confirmar_cadastro, pattern='confirmar_cadastro'),
+                CallbackQueryHandler(cancelar_cadastro, pattern='cancelar_cadastro')
+            ]
+        },
+        fallbacks=[CommandHandler('start', start)]
+    )
+    
+    app.add_handler(conv_handler)
+    
+    # Iniciar bot
+    logger.info('✅ Bot iniciado com sucesso!')
+    app.run_polling()
+
+if __name__ == '__main__':
     main()
