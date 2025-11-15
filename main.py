@@ -12,7 +12,7 @@ import sqlite3
 import logging
 import uuid
 from datetime import datetime
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, InputMediaPhoto
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ConversationHandler, filters, ContextTypes
 
 # Configuração de logging
@@ -574,15 +574,19 @@ async def mostrar_videos(query, usuario):
         await query.edit_message_text('Nenhum vídeo disponível no momento.')
         return
     
+    # Editar mensagem anterior com a imagem
     try:
         with open('banner_videos.png', 'rb') as banner_file:
-            await query.message.reply_photo(
-                photo=banner_file,
+            await query.edit_message_media(
+                media=InputMediaPhoto(banner_file),
                 caption='Assistir Vídeos!',
                 parse_mode='HTML'
             )
-    except FileNotFoundError:
-        logger.warning('Banner de vídeos não encontrado!')
+    except:
+        try:
+            await query.edit_message_text('Assistir Vídeos!')
+        except:
+            pass
     
     texto = '🎬 <b>VÍDEOS DISPONÍVEIS</b>\n\n'
     
@@ -599,7 +603,8 @@ async def mostrar_videos(query, usuario):
     
     keyboard.append([InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')])
     
-    await query.edit_message_text(
+    # Enviar menu em mensagem separada
+    await query.message.reply_text(
         texto,
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='HTML'
@@ -813,10 +818,20 @@ async def mostrar_historico(query, usuario):
 
 async def mostrar_config(query, usuario):
     """Mostra opções de configuração."""
+    try:
+        with open('banner_config.png', 'rb') as banner_file:
+            await query.message.reply_photo(
+                photo=banner_file,
+                caption='Suas Configurações!',
+                parse_mode='HTML'
+            )
+    except FileNotFoundError:
+        logger.warning('Banner de configuração não encontrado!')
+    
     texto = f'''⚙️ <b>CONFIGURAÇÕES</b>
 
 👤 <b>Nome:</b> {usuario['nome']}
-🏙️ <b>Cidade:</b> {usuario['cidade']}
+🏛️ <b>Cidade:</b> {usuario['cidade']}
 🎂 <b>Idade:</b> {usuario['idade']} anos
 📱 <b>PIX:</b> {usuario['pix'] if usuario['pix'] else 'Não cadastrado'}
 
