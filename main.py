@@ -574,20 +574,6 @@ async def mostrar_videos(query, usuario):
         await query.edit_message_text('Nenhum vídeo disponível no momento.')
         return
     
-    # Editar mensagem anterior com a imagem
-    try:
-        with open('banner_videos.png', 'rb') as banner_file:
-            await query.edit_message_media(
-                media=InputMediaPhoto(banner_file),
-                caption='Assistir Vídeos!',
-                parse_mode='HTML'
-            )
-    except:
-        try:
-            await query.edit_message_text('Assistir Vídeos!')
-        except:
-            pass
-    
     texto = '🎬 <b>VÍDEOS DISPONÍVEIS</b>\n\n'
     
     for video in videos:
@@ -603,12 +589,26 @@ async def mostrar_videos(query, usuario):
     
     keyboard.append([InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')])
     
-    # Enviar menu em mensagem separada
-    await query.message.reply_text(
-        texto,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode='HTML'
-    )
+    # Enviar imagem com menu junto
+    try:
+        with open('banner_videos.png', 'rb') as banner_file:
+            await query.edit_message_media(
+                media=InputMediaPhoto(banner_file),
+                caption=texto,
+                parse_mode='HTML'
+            )
+            await query.edit_message_reply_markup(
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+    except:
+        try:
+            await query.edit_message_text(
+                texto,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='HTML'
+            )
+        except:
+            pass
 
 async def assistir_video(query, usuario, video_id):
     """Processa a assistência de um vídeo."""
@@ -656,16 +656,6 @@ Parabéns! Continue assistindo para ganhar mais! 🎉'''
 
 async def mostrar_saque(query, usuario):
     """Mostra opções de saque."""
-    try:
-        with open('banner_saque.png', 'rb') as banner_file:
-            await query.message.reply_photo(
-                photo=banner_file,
-                caption='Sacar Saldo!',
-                parse_mode='HTML'
-            )
-    except FileNotFoundError:
-        logger.warning('Banner de saque não encontrado!')
-    
     texto = f'''💸 <b>SACAR SALDO</b>
 
 💰 <b>Seu saldo atual:</b> R$ {usuario['saldo']:.2f}
@@ -693,17 +683,31 @@ Clique em "Cadastrar PIX" para continuar.'''
             ]
     else:
         falta = 20.00 - usuario['saldo']
-        texto += f'''❌ Você ainda não atingiu o saldo mínimo.
+        texto += f'''\u274c Você ainda não atingiu o saldo mínimo.
 Faltam R$ {falta:.2f} para poder sacar.
 
 Continue assistindo vídeos para ganhar mais! 💪'''
         keyboard = [[InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')]]
     
-    await query.edit_message_text(
-        texto,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode='HTML'
-    )
+    try:
+        with open('banner_saque.png', 'rb') as banner_file:
+            await query.edit_message_media(
+                media=InputMediaPhoto(banner_file),
+                caption=texto,
+                parse_mode='HTML'
+            )
+            await query.edit_message_reply_markup(
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+    except:
+        try:
+            await query.edit_message_text(
+                texto,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='HTML'
+            )
+        except:
+            pass
 
 async def solicitar_saque_callback(query, usuario, context):
     """Processa solicitação de saque."""
