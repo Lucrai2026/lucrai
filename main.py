@@ -651,6 +651,16 @@ Parabéns! Continue assistindo para ganhar mais! 🎉'''
 
 async def mostrar_saque(query, usuario):
     """Mostra opções de saque."""
+    try:
+        with open('banner_saque.png', 'rb') as banner_file:
+            await query.message.reply_photo(
+                photo=banner_file,
+                caption='Sacar Saldo!',
+                parse_mode='HTML'
+            )
+    except FileNotFoundError:
+        logger.warning('Banner de saque não encontrado!')
+    
     texto = f'''💸 <b>SACAR SALDO</b>
 
 💰 <b>Seu saldo atual:</b> R$ {usuario['saldo']:.2f}
