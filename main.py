@@ -692,6 +692,17 @@ async def mostrar_afiliado(query, usuario):
     indicados = contar_indicados(usuario['user_id'])
     comissoes = obter_comissoes(usuario['user_id'])
     
+    # Mostrar imagem do banner
+    try:
+        with open('banner_afiliado.png', 'rb') as banner_file:
+            await query.message.reply_photo(
+                photo=banner_file,
+                caption='🔗 <b>INDIQUE E GANHE</b>',
+                parse_mode='HTML'
+            )
+    except FileNotFoundError:
+        logger.warning('⚠️ Banner de afiliado não encontrado!')
+    
     texto = f'''🔗 <b>INDIQUE E GANHE</b>
 
 Compartilhe seu link único e ganhe 10% de tudo que seus indicados fizerem!
@@ -717,7 +728,7 @@ Comece a indicar e ganhe mais! 🚀'''
     
     keyboard = [[InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')]]
     
-    await query.edit_message_text(
+    await query.message.reply_text(
         texto,
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='HTML'
