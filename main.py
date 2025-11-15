@@ -25,6 +25,9 @@ logger = logging.getLogger(__name__)
 # Token do bot
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '8403406649:AAHbopbUcKYTSHXjdS3LX3gvkKMBe560s8o')
 
+# ID do dono (será preenchido automaticamente)
+OWNER_ID = None
+
 # Banco de dados
 DB_FILE = 'lucrai_db.sqlite'
 
@@ -865,6 +868,47 @@ async def receber_texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except ValueError:
             await update.message.reply_text('Por favor, digite um número válido.')
 
+async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Envia mensagem para todos os usuários."""
+    global OWNER_ID
+    
+    if OWNER_ID is None:
+        OWNER_ID = update.effective_user.id
+    
+    if update.effective_user.id != OWNER_ID:
+        await update.message.reply_text('Sem permissão!')
+        return
+    
+    if not context.args:
+        await update.message.reply_text('Uso: /broadcast sua mensagem')
+        return
+    
+    mensagem = ' '.join(context.args)
+    
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('SELECT user_id FROM usuarios')
+    usuarios = cursor.fetchall()
+    conn.close()
+    
+    if not usuarios:
+        await update.message.reply_text('Nenhum usuário cadastrado!')
+        return
+    
+    enviados = 0
+    for (user_id,) in usuarios:
+        try:
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=f'📢 {mensagem}',
+                parse_mode='HTML'
+            )
+            enviados += 1
+        except:
+            pass
+    
+    await update.message.reply_text(f'Enviado para {enviados} usuários!')
+
 async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler para /menu."""
     await menu_principal(update, context)
@@ -884,6 +928,7 @@ def main():
     # Handlers
     app.add_handler(CommandHandler('start', start))
     app.add_handler(CommandHandler('menu', menu_command))
+    app.add_handler(CommandHandler('broadcast', broadcast_command))
     
     # Conversation handler para cadastro (DEVE SER ANTES do button_callback)
     conv_handler = ConversationHandler(
