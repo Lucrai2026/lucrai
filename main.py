@@ -775,6 +775,16 @@ Comece a indicar e ganhe mais! 🚀'''
 
 async def mostrar_historico(query, usuario):
     """Mostra histórico de vídeos."""
+    try:
+        with open('banner_historico.png', 'rb') as banner_file:
+            await query.message.reply_photo(
+                photo=banner_file,
+                caption='Seu Histórico!',
+                parse_mode='HTML'
+            )
+    except FileNotFoundError:
+        logger.warning('Banner de histórico não encontrado!')
+    
     historico = obter_historico(usuario['user_id'], 10)
     
     if not historico:
