@@ -828,6 +828,16 @@ O que você quer alterar?'''
 
 async def mostrar_suporte(query, usuario):
     """Mostra informações de suporte."""
+    try:
+        with open('banner_suporte.png', 'rb') as banner_file:
+            await query.message.reply_photo(
+                photo=banner_file,
+                caption='Suporte PlayLucro!',
+                parse_mode='HTML'
+            )
+    except FileNotFoundError:
+        logger.warning('Banner de suporte não encontrado!')
+    
     texto = '''💬 <b>SUPORTE</b>
 
 Tem dúvidas ou precisa de ajuda?
