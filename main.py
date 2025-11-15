@@ -310,9 +310,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if usuario_existe(user_id):
         await menu_principal(update, context)
     else:
-        await update.message.reply_photo(
-            photo=open('banner.png', 'rb') if os.path.exists('banner.png') else None,
-            caption='''🎬 <b>Seja bem-vindo ao PlayLucro!</b> 🚀
+        texto = '''🎬 <b>Seja bem-vindo ao PlayLucro!</b> 🚀
 
 PlayLucro é a sua plataforma de renda extra no Telegram.
 <b>Clicou, Assistiu e Lucrou!</b> 💰
@@ -330,16 +328,15 @@ Você realiza tarefas simples: assistir vídeos que o PlayLucro disponibiliza pa
 🔥 <b>Chega de enganações na internet!</b>
 Vamos com tudo no PlayLucro - Deu Play, Lucrou! 🎮💸
 
-Pronto para começar essa jornada de renda extra incrível?''',
-            parse_mode='HTML'
-        )
+Proto para começar essa jornada de renda extra incrível?'''
         
         keyboard = [[InlineKeyboardButton("🚀 Clique aqui para Cadastrar", callback_data='cadastrar')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(
-            'Clique no botão abaixo para começar seu cadastro:',
-            reply_markup=reply_markup
+            texto,
+            reply_markup=reply_markup,
+            parse_mode='HTML'
         )
 
 async def cadastrar_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
