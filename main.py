@@ -716,11 +716,6 @@ Compartilhe seu link único e ganhe 10% de tudo que seus indicados fizerem!
 • Para cada vídeo que eles assistem, você ganha 10%
 • Sua % pode aumentar de acordo com seu desempenho como afiliado
 
-💰 <b>Repartição com afiliado:</b>
-• 10% para você (afiliado)
-• 25% para PlayLucro
-• 65% para quem assiste o vídeo
-
 Comece a indicar e ganhe mais! 🚀'''
     
     keyboard = [[InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')]]
