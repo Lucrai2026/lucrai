@@ -192,8 +192,9 @@ def obter_videos() -> list:
     return videos
 
 def registrar_visualizacao(user_id: int, video_id: int, valor: float):
-    """Registra uma visualização de vídeo."""
-    conn = sqlite3.connect(DB_FILE)
+    """Registra que o usuário assistiu um vídeo."""
+    conn = sqlite3.connect(DB_FILE, timeout=10.0)
+    conn.execute('PRAGMA journal_mode=WAL')
     cursor = conn.cursor()
     
     # Registrar visualização
@@ -216,7 +217,7 @@ def registrar_visualizacao(user_id: int, video_id: int, valor: float):
 
 def obter_historico(user_id: int, limite: int = 10) -> list:
     """Obtém histórico de vídeos assistidos."""
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, timeout=10.0)
     cursor = conn.cursor()
     cursor.execute('''
         SELECT v.titulo, vis.data_visualizacao, vis.status, vis.valor_ganho
@@ -232,7 +233,7 @@ def obter_historico(user_id: int, limite: int = 10) -> list:
 
 def contar_indicados(user_id: int) -> int:
     """Conta quantos usuários foram indicados."""
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, timeout=10.0)
     cursor = conn.cursor()
     cursor.execute('SELECT COUNT(*) FROM usuarios WHERE afiliado_de = ?', (user_id,))
     count = cursor.fetchone()[0]
@@ -241,7 +242,7 @@ def contar_indicados(user_id: int) -> int:
 
 def obter_comissoes(user_id: int) -> float:
     """Obtém total de comissões ganhas."""
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, timeout=10.0)
     cursor = conn.cursor()
     cursor.execute('''
         SELECT SUM(valor) FROM transacoes
@@ -253,7 +254,7 @@ def obter_comissoes(user_id: int) -> float:
 
 def atualizar_usuario(user_id: int, **kwargs):
     """Atualiza dados do usuário."""
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, timeout=10.0)
     cursor = conn.cursor()
     
     campos = []
@@ -273,7 +274,7 @@ def atualizar_usuario(user_id: int, **kwargs):
 
 def solicitar_saque(user_id: int, valor: float, pix: str):
     """Cria uma solicitação de saque."""
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, timeout=10.0)
     cursor = conn.cursor()
     
     # Registrar saque
@@ -631,7 +632,8 @@ async def mostrar_videos(query, usuario):
 async def assistir_video(query, usuario, video_id):
     """Processa a assistência de um vídeo."""
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = sqlite3.connect(DB_FILE, timeout=10.0)
+        conn.execute('PRAGMA journal_mode=WAL')
         cursor = conn.cursor()
         cursor.execute('SELECT titulo, url, valor FROM videos WHERE id = ?', (video_id,))
         video = cursor.fetchone()
