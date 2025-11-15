@@ -817,8 +817,6 @@ async def receber_texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='HTML'
         )
         context.user_data['modo'] = None
-        usuario = obter_usuario(user_id)
-        await mostrar_saque(update.message, usuario)
     
     elif modo == 'alterar_pix':
         atualizar_usuario(user_id, pix=texto)
@@ -827,8 +825,6 @@ async def receber_texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='HTML'
         )
         context.user_data['modo'] = None
-        usuario = obter_usuario(user_id)
-        await mostrar_saque(update.message, usuario)
     
     elif modo == 'alterar_nome':
         atualizar_usuario(user_id, nome=texto)
@@ -837,8 +833,6 @@ async def receber_texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='HTML'
         )
         context.user_data['modo'] = None
-        usuario = obter_usuario(user_id)
-        await mostrar_config(update.message, usuario)
     
     elif modo == 'alterar_cidade':
         atualizar_usuario(user_id, cidade=texto)
@@ -847,8 +841,6 @@ async def receber_texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='HTML'
         )
         context.user_data['modo'] = None
-        usuario = obter_usuario(user_id)
-        await mostrar_config(update.message, usuario)
     
     elif modo == 'alterar_idade':
         try:
@@ -859,8 +851,6 @@ async def receber_texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode='HTML'
             )
             context.user_data['modo'] = None
-            usuario = obter_usuario(user_id)
-            await mostrar_config(update.message, usuario)
         except ValueError:
             await update.message.reply_text('Por favor, digite um número válido.')
 
