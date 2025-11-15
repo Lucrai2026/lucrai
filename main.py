@@ -516,6 +516,17 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     usuario = obter_usuario(user_id)
     
+    # Deletar mensagem anterior do bot
+    try:
+        if 'last_bot_message_id' in context.user_data:
+            await query.message.delete()
+    except:
+        pass
+    
+    # Armazenar ID da nova mensagem
+    if query.message:
+        context.user_data['last_bot_message_id'] = query.message.message_id
+    
     if query.data == 'videos':
         await mostrar_videos(query, usuario)
     elif query.data == 'saque':
@@ -589,15 +600,23 @@ async def mostrar_videos(query, usuario):
     
     keyboard.append([InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')])
     
+    # Deletar mensagem anterior e enviar nova
+    try:
+        await query.message.delete()
+    except:
+        pass
+    
     # Enviar imagem com menu junto
     try:
         with open('banner_videos.png', 'rb') as banner_file:
-            await query.message.reply_photo(
+            msg = await query.message.reply_photo(
                 photo=banner_file,
                 caption=texto,
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='HTML'
             )
+            # Armazenar ID da mensagem
+            context.user_data['last_bot_message_id'] = msg.message_id
     except Exception as e:
         logger.error(f'Erro ao enviar vídeos: {e}')
         try:
@@ -688,14 +707,21 @@ Faltam R$ {falta:.2f} para poder sacar.
 Continue assistindo vídeos para ganhar mais! 💪'''
         keyboard = [[InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')]]
     
+    # Deletar mensagem anterior
+    try:
+        await query.message.delete()
+    except:
+        pass
+    
     try:
         with open('banner_saque.png', 'rb') as banner_file:
-            await query.message.reply_photo(
+            msg = await query.message.reply_photo(
                 photo=banner_file,
                 caption=texto,
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='HTML'
             )
+            context.user_data['last_bot_message_id'] = msg.message_id
     except Exception as e:
         logger.error(f'Erro ao enviar saque: {e}')
         try:
@@ -764,14 +790,21 @@ Comece a indicar e ganhe mais! 🚀'''
     
     keyboard = [[InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')]]
     
+    # Deletar mensagem anterior
+    try:
+        await query.message.delete()
+    except:
+        pass
+    
     try:
         with open('banner_afiliado.png', 'rb') as banner_file:
-            await query.message.reply_photo(
+            msg = await query.message.reply_photo(
                 photo=banner_file,
                 caption=texto,
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='HTML'
             )
+            context.user_data['last_bot_message_id'] = msg.message_id
     except Exception as e:
         logger.error(f'Erro ao enviar afiliado: {e}')
         try:
@@ -807,14 +840,21 @@ async def mostrar_historico(query, usuario):
     
     keyboard = [[InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')]]
     
+    # Deletar mensagem anterior
+    try:
+        await query.message.delete()
+    except:
+        pass
+    
     try:
         with open('banner_historico.png', 'rb') as banner_file:
-            await query.message.reply_photo(
+            msg = await query.message.reply_photo(
                 photo=banner_file,
                 caption=texto,
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='HTML'
             )
+            context.user_data['last_bot_message_id'] = msg.message_id
     except Exception as e:
         logger.error(f'Erro ao enviar histórico: {e}')
         try:
@@ -847,14 +887,21 @@ O que você quer alterar?'''
         [InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')]
     ]
     
+    # Deletar mensagem anterior
+    try:
+        await query.message.delete()
+    except:
+        pass
+    
     try:
         with open('banner_config.png', 'rb') as banner_file:
-            await query.message.reply_photo(
+            msg = await query.message.reply_photo(
                 photo=banner_file,
                 caption=texto,
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='HTML'
             )
+            context.user_data['last_bot_message_id'] = msg.message_id
     except Exception as e:
         logger.error(f'Erro ao enviar configuração: {e}')
         try:
@@ -881,14 +928,21 @@ Clique no botão abaixo para ir ao nosso grupo de suporte:'''
         [InlineKeyboardButton('◀️ Voltar ao Menu', callback_data='menu')]
     ]
     
+    # Deletar mensagem anterior
+    try:
+        await query.message.delete()
+    except:
+        pass
+    
     try:
         with open('banner_suporte.png', 'rb') as banner_file:
-            await query.message.reply_photo(
+            msg = await query.message.reply_photo(
                 photo=banner_file,
                 caption=texto,
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='HTML'
             )
+            context.user_data['last_bot_message_id'] = msg.message_id
     except Exception as e:
         logger.error(f'Erro ao enviar suporte: {e}')
         try:
