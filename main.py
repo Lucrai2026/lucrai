@@ -574,6 +574,16 @@ async def mostrar_videos(query, usuario):
         await query.edit_message_text('Nenhum vídeo disponível no momento.')
         return
     
+    try:
+        with open('banner_videos.png', 'rb') as banner_file:
+            await query.message.reply_photo(
+                photo=banner_file,
+                caption='Assistir Vídeos!',
+                parse_mode='HTML'
+            )
+    except FileNotFoundError:
+        logger.warning('Banner de vídeos não encontrado!')
+    
     texto = '🎬 <b>VÍDEOS DISPONÍVEIS</b>\n\n'
     
     for video in videos:
